@@ -1,0 +1,85 @@
+[package]
+name = "xy-rpc"
+version = "0.1.0"
+edition = "2024"
+description = "An RPC framework for Rust"
+license = "MIT"
+repository = "https://github.com/ycysdf/xy-rpc"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+rt_tokio = ["dep:tokio", "dep:tokio-util"]
+axum = ["dep:axum", "dashmap"]
+format_json = ["dep:serde_json"]
+format_message_pack = ["dep:rmp-serde"]
+duplex = []
+[workspace]
+members = ["crates/xy-rpc-macro", "examples/wasm_play"]
+
+
+[dependencies]
+futures-util = { version = "0.3", features = ["sink", "io", "futures-macro", "async-await-macro"], default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["std"], default-features = false, optional = true }
+flume = { version = "0.11", features = ["async"], default-features = false }
+futures-channel = { version = "0.3", features = ["alloc"], default-features = false }
+auto_enums = "0.8"
+derive_more = { version = "1", features = ["full"] }
+bit_field = "0.10"
+bytes = "1.10.0"
+xy-rpc-macro = { path = "crates/xy-rpc-macro", version = "0.1.0" }
+tracing = "0.1"
+portable-atomic = { version = "1.10" }
+
+tokio = { version = "1", features = ["net", "io-util"], default-features = false, optional = true }
+tokio-util = { version = "0.7", features = ["compat"], default-features = false, optional = true }
+axum = { version = "0.8", features = [], default-features = false, optional = true }
+dashmap = { version = "6.1", optional = true }
+rmp-serde = { version = "1.3", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ts-rs = "10"
+uuid = { version = "1", features = ["v4"] }
+tower = "0.5"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-net = { version = "0.6", features = ["http"], default-features = false }
+js-sys = { version = "0.3", default-features = false }
+web-sys = { version = "0.3", features = ["ReadableStream", "WritableStream", "WritableStreamDefaultWriter", "TransformStream", "TransformStreamDefaultController"], default-features = false }
+wasm-bindgen = { version = "0.2.100", default-features = false, features = ["serde-serialize", "serde"] }
+wasm-bindgen-futures = { version = "0.4", default-features = false }
+wasm-streams = { version = "0.4", default-features = false }
+pin-project = "1"
+
+[dev-dependencies]
+dashmap = "6.1"
+axum = { version = "0.8", features = [] }
+tokio-util = { version = "0.7", features = ["io"], default-features = false }
+tokio = { version = "1", features = ["full"] }
+xy-rpc = { path = ".", features = ["rt_tokio", "axum", "format_json", "format_message_pack", "duplex"] }
+#tracing-lv = { path = "../tracing-live/libs/client" }
+#tower-http = { version = "0.6", features = ["cors"] }
+
+bincode = { version = "1.3", features = [] }
+
+
+[[example]]
+name = "unidirectional_rpc_exmaple_caller"
+path = "examples/unidirectional_rpc_example/caller.rs"
+
+[[example]]
+name = "unidirectional_rpc_exmaple_service"
+path = "examples/unidirectional_rpc_example/service.rs"
+
+
+[[example]]
+name = "bidirectional_rpc_exmaple_connector"
+path = "examples/bidirectional_rpc_example/connector.rs"
+
+
+[[example]]
+name = "bidirectional_rpc_exmaple_acceptor"
+path = "examples/bidirectional_rpc_example/acceptor.rs"
