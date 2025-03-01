@@ -113,7 +113,7 @@ where
     let (duplex1, duplex2) = tokio::io::duplex(1024 * 8);
     let (read1, write1) = tokio::io::split(duplex1);
     let (read2, write2) = tokio::io::split(duplex2);
-    crate::duplex::serve_duplex_fromserve_duplex_from(
+    crate::duplex::serve_duplex_from(
         (
             (read1.compat(), write1.compat_write()),
             (read2.compat(), write2.compat_write()),
