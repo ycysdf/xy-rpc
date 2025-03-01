@@ -1,6 +1,6 @@
 [package]
 name = "xy-rpc"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "An RPC framework for Rust"
 license = "MIT"
@@ -15,7 +15,7 @@ rt_tokio = ["dep:tokio", "dep:tokio-util"]
 axum = ["dep:axum", "dashmap"]
 format_json = ["dep:serde_json"]
 format_message_pack = ["dep:rmp-serde"]
-duplex = []
+duplex = ["rt_tokio"]
 [workspace]
 members = ["crates/xy-rpc-macro", "examples/wasm_play"]
 
