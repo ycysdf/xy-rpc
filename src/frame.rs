@@ -156,7 +156,9 @@ pub async fn read_frame(
 ) -> Option<Result<RpcFrameHead, RpcError>> {
     let mut bits = [0u8; 8];
     let r = read.read_exact(&mut bits[..]).await;
+    // println!("r: {r:?}");
     let bits = u64::from_be_bytes(bits);
+    // println!("bits: {bits:?}");
     if let Err(err) = r {
         if matches!(err.kind(), std::io::ErrorKind::UnexpectedEof) && bits == 0 {
             None

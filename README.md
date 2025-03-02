@@ -12,6 +12,7 @@
 - Any Serde format can be used
 - The Asynchronous Runtime is Agnostic
 - Call the RPC method, the argument uses a reference, call multiple times, and clone is not required
+- Support without Send
 
 ## Simple Example
 

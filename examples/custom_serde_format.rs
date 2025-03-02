@@ -70,7 +70,7 @@ impl SerdeFormat for MySerdeFormat {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     serve_duplex_tokio(
         MySerdeFormat,
