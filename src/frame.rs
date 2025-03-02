@@ -45,7 +45,7 @@ pub struct RpcFrame {
     pub payload: Bytes,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug,Serialize, Deserialize)]
 pub enum RpcFrameHead {
     Msg {
         id: RpcMsgKind,
@@ -144,8 +144,10 @@ pub async fn write_frame(
     mut write: impl futures_util::AsyncWrite + Unpin,
     frame: &RpcFrameHead,
 ) -> Result<(), RpcError> {
+    // println!("write frame: {frame:#?}");
     let bits: u64 = frame.into();
     write.write_all(bits.to_be_bytes().as_slice()).await?;
+    // println!("write frame end");
     Ok(())
 }
 

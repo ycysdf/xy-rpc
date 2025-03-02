@@ -3,20 +3,24 @@
 // #[cfg(target_arch = "wasm32")]
 // pub mod web;
 
-#[cfg(feature = "rt_tokio")]
+#[cfg(feature = "rt_tokio_without_send_sync")]
 pub mod tokio;
 
 pub use xy_rpc_macro as macros;
 
+#[cfg(feature = "rt_compio")]
+pub mod compio;
 #[cfg(feature = "duplex")]
 pub mod duplex;
 pub mod formats;
 mod frame;
+mod maybe_send;
 
 use crate::formats::SerdeFormat;
 use crate::frame::{
     RpcFrame, RpcFrameHead, RpcMsgKind, RpcMsgSendId, RpcStreamKind, read_frame, write_frame,
 };
+use crate::maybe_send::{MaybeSend, MaybeSync};
 use auto_enums::enum_derive;
 use bytes::{BufMut, Bytes, BytesMut};
 use derive_more::{Display, Error, From};
@@ -51,7 +55,7 @@ pub struct RpcMsgInfo {
     pub name: &'static str,
 }
 
-pub trait RpcRefMsg: Serialize + Unpin + Debug + Send {
+pub trait RpcRefMsg: Serialize + Unpin + Debug + MaybeSend {
     fn info(&self) -> RpcMsgInfo;
 }
 
@@ -73,27 +77,29 @@ impl RpcMsg for () {
 }
 
 pub trait RpcTransportStream:
-    TryStream<Ok = RpcFrame, Error: Into<RpcError> + Debug + Send + Sync + 'static> + Send + 'static
+    TryStream<Ok = RpcFrame, Error: Into<RpcError> + Debug + MaybeSend + MaybeSync + 'static>
+    + MaybeSend
+    + 'static
 {
 }
 
 impl<S> RpcTransportStream for S where
     S: ?Sized
-        + TryStream<Ok = RpcFrame, Error: Into<RpcError> + Debug + Send + Sync + 'static>
-        + Send
+        + TryStream<Ok = RpcFrame, Error: Into<RpcError> + Debug + MaybeSend + MaybeSync + 'static>
+        + MaybeSend
         + 'static
 {
 }
 
 pub trait RpcTransportSink:
-    Sink<RpcFrame, Error: Into<RpcError> + Debug + Send + Sync + 'static> + Send + 'static
+    Sink<RpcFrame, Error: Into<RpcError> + Debug + MaybeSend + MaybeSync + 'static> + MaybeSend + 'static
 {
 }
 
 impl<S> RpcTransportSink for S where
     S: ?Sized
-        + Sink<RpcFrame, Error: Into<RpcError> + Debug + Send + Sync + 'static>
-        + Send
+        + Sink<RpcFrame, Error: Into<RpcError> + Debug + MaybeSend + MaybeSync + 'static>
+        + MaybeSend
         + 'static
 {
 }
@@ -112,26 +118,29 @@ impl RpcServiceSchema for () {
     type Reply = ();
 }
 
-pub trait RpcMsgHandler<S: RpcServiceSchema>: Send + Sync {
-    fn handle(&self, msg: S::Msg) -> impl Future<Output = S::Reply> + Send;
+pub trait RpcMsgHandler<S: RpcServiceSchema>: MaybeSend + MaybeSync {
+    fn handle(&self, msg: S::Msg) -> impl Future<Output = S::Reply> + MaybeSend;
 }
 impl<S: RpcServiceSchema> RpcMsgHandler<S> for () {
-    fn handle(&self, _msg: <S as RpcServiceSchema>::Msg) -> impl Future<Output = S::Reply> + Send {
+    fn handle(
+        &self,
+        _msg: <S as RpcServiceSchema>::Msg,
+    ) -> impl Future<Output = S::Reply> + MaybeSend {
         async move { unreachable!("no handler") }
     }
 }
 
 impl RpcMsgHandler<()> for RpcMsgHandlerWrapper<()> {
-    fn handle(&self, _msg: ()) -> impl Future<Output = ()> + Send {
+    fn handle(&self, _msg: ()) -> impl Future<Output = ()> + MaybeSend {
         async move { unreachable!("no handler") }
     }
 }
 
 // pub trait RpcMsgExclusiveHandler<Msg, Reply>: Send {
-//     fn handle(&mut self, msg: Msg) -> impl Future<Output = Reply> + Send;
+//     fn handle(&mut self, msg: Msg) -> impl Future<Output = Reply> + MaybeSend;
 // }
 // impl<Msg, Reply> RpcMsgExclusiveHandler<Msg, Reply> for () {
-//     fn handle(&mut self, _: Msg) -> impl Future<Output = Reply> + Send {
+//     fn handle(&mut self, _: Msg) -> impl Future<Output = Reply> + MaybeSend {
 //         async move { unreachable!("no handler") }
 //     }
 // }
@@ -221,12 +230,12 @@ where
     pub fn build_from_read_write(
         self,
         (read, write): (
-            impl futures_util::AsyncRead + Unpin + Send + 'static,
-            impl futures_util::AsyncWrite + Unpin + Send + 'static,
+            impl futures_util::AsyncRead + Unpin + MaybeSend + 'static,
+            impl futures_util::AsyncWrite + Unpin + MaybeSend + 'static,
         ),
     ) -> (
         XyRpcChannel<SF, CS>,
-        impl Future<Output = Result<(), RpcError>> + Send + 'static,
+        impl Future<Output = Result<(), RpcError>> + MaybeSend + 'static,
     )
     where
         XyRpcChannel<SF, CS>: Clone,
@@ -243,7 +252,7 @@ where
         transport_stream: impl RpcTransportStream + Unpin,
     ) -> (
         XyRpcChannel<SF, CS>,
-        impl Future<Output = Result<(), RpcError>> + Send + 'static,
+        impl Future<Output = Result<(), RpcError>> + MaybeSend + 'static,
     )
     where
         XyRpcChannel<SF, CS>: Clone,
@@ -299,7 +308,7 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
         serde_format: SF,
     ) -> (
         Self,
-        impl Future<Output = Result<(), RpcError>> + Send + 'static,
+        impl Future<Output = Result<(), RpcError>> + MaybeSend + 'static,
     )
     where
         XyRpcChannel<SF, CS>: Clone,
@@ -416,7 +425,7 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
     pub fn call<'a>(
         &self,
         msg: <CS::Msg as RpcMsg>::Ref<'a>,
-    ) -> impl Future<Output = Result<RpcMsgItem<CS::Reply>, RpcError>> + Send + 'static {
+    ) -> impl Future<Output = Result<RpcMsgItem<CS::Reply>, RpcError>> + MaybeSend + 'static {
         let return_receiver: Result<_, RpcError> = (|| {
             let msg_kind = msg.info().id;
             let msg = BUF
@@ -462,6 +471,9 @@ pub enum RpcError {
     CallSendError(RpcMsgItem),
     RecvCallReplyCancelled,
     ServeExceptionEnd,
+    OtherError{
+        message: String
+    }
 }
 
 impl RpcError {
@@ -474,12 +486,13 @@ impl RpcError {
 }
 
 pub fn new_transport_stream(
-    read: impl futures_util::AsyncRead + Unpin + Send + 'static,
+    read: impl futures_util::AsyncRead + Unpin + MaybeSend + 'static,
 ) -> impl RpcTransportStream<Error = RpcError> + Unpin {
     let buf = BytesMut::with_capacity(1024 * 8);
-    futures_util::stream::unfold((read, buf), move |(mut read, mut buf)| async move {
+    let future = futures_util::stream::unfold((read, buf), move |(mut read, mut buf)| async move {
         match read_frame(&mut read).await? {
             Ok(frame_head) => {
+                // println!("frame_head: {frame_head:#?}");
                 let payload_len = match &frame_head {
                     RpcFrameHead::Msg { payload_len, .. } => *payload_len,
                     RpcFrameHead::Rpc { payload_len, .. } => *payload_len,
@@ -502,12 +515,20 @@ pub fn new_transport_stream(
             }
             Err(err) => Some((Err(err.into()), (read, buf))),
         }
-    })
-    .boxed()
+    });
+
+    #[cfg(feature = "send_sync")]
+    {
+        future.boxed()
+    }
+    #[cfg(not(feature = "send_sync"))]
+    {
+        future.boxed_local()
+    }
 }
 
 pub fn new_transport_sink(
-    write: impl futures_util::AsyncWrite + Unpin + Send + 'static,
+    write: impl futures_util::AsyncWrite + Unpin + MaybeSend + 'static,
 ) -> impl RpcTransportSink<Error = RpcError> + Unpin {
     Box::pin(futures_util::sink::unfold(
         write,
@@ -518,9 +539,6 @@ pub fn new_transport_sink(
         },
     ))
 }
-
-
-
 
 pub trait ServiceFactory<SF, CS: RpcServiceSchema> {
     type S: RpcServiceSchema;
@@ -544,10 +562,10 @@ impl<F, M> FnServiceFactory<F, M> {
 }
 
 impl<F, S: RpcServiceSchema, H, SF, CS: RpcServiceSchema> ServiceFactory<SF, CS>
-for FnServiceFactory<F, (CS, S)>
+    for FnServiceFactory<F, (CS, S)>
 where
-   F: FnOnce(XyRpcChannel<SF, CS>) -> H,
-   H: RpcMsgHandler<S> + 'static,
+    F: FnOnce(XyRpcChannel<SF, CS>) -> H,
+    H: RpcMsgHandler<S> + 'static,
 {
     type S = S;
 

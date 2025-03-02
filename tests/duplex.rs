@@ -51,12 +51,12 @@ mod tests {
     use std::time::Duration;
     use tokio::try_join;
     use xy_rpc::formats::JsonFormat;
-    use xy_rpc::tokio::serve_duplex;
+    use xy_rpc::tokio::serve_duplex_tokio;
     use xy_rpc_macro::rpc_service;
 
     #[tokio::test]
     async fn duplex_test() {
-        serve_duplex(
+        serve_duplex_tokio(
             JsonFormat,
             (
                 |_| TestService,
@@ -87,7 +87,7 @@ mod tests {
 
     #[tokio::test]
     async fn concurrent_test() {
-        serve_duplex(
+        serve_duplex_tokio(
             JsonFormat,
             (
                 |_| TestService,
