@@ -17,12 +17,12 @@ struct ComplexObj {
 }
 
 #[rpc_service]
-trait ClientService: Send + Sync {
+trait ClientService {
     async fn hello1(&self, content: ComplexObj) -> ComplexObj;
 }
 
 #[rpc_service]
-trait ServerService: Send + Sync {
+trait ServerService {
     async fn hello2(&self, content: ComplexObj) -> ComplexObj;
 }
 
@@ -30,7 +30,7 @@ struct TestClientService;
 struct TestServerService;
 
 impl ClientService for TestClientService {
-    fn hello1(&self, mut content: ComplexObj) -> impl Future<Output = ComplexObj> + Send {
+    fn hello1(&self, mut content: ComplexObj) -> impl Future<Output = ComplexObj> {
         async move {
             println!("ClientService: {:?}", content);
             content.g.push(content.clone());

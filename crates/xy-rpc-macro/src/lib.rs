@@ -10,47 +10,6 @@ use syn::{
     PathArguments, ReturnType, Token, TraitItem, Type, TypeParamBound, TypeReference, Variant,
     Visibility,
 };
-/*
-
-#[derive(Debug, Deserialize)]
-pub enum RcpTestServiceReturnMsg {
-    A(u32),
-    B(u32),
-    C(String),
-}
-impl RpcMsg for RcpTestServiceReturnMsg {
-    fn index(&self) -> u16 {
-        todo!()
-    }
-}
-
-impl<T> RpcMsgHandler<RcpTestServiceMsg, RcpTestServiceReturnMsg> for T
-where
-    T: RcpTestService,
-{
-    fn handle(
-        &self,
-        msg: RcpTestServiceMsg,
-    ) -> impl Future<Output = RcpTestServiceReturnMsg> + Send {
-        async {
-            match msg {
-                RcpTestServiceMsg::A { x } => {
-                    let r = self.a(x).await;
-                    RcpTestServiceReturnMsg::A(r)
-                }
-                RcpTestServiceMsg::B { x } => {
-                    let r = self.b(x).await;
-                    RcpTestServiceReturnMsg::B(r)
-                }
-                RcpTestServiceMsg::C { x } => {
-                    let r = self.c(x).await;
-                    RcpTestServiceReturnMsg::C(r)
-                }
-            }
-        }
-    }
-}
- */
 
 #[proc_macro_attribute]
 pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -62,10 +21,10 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 if let Some(_r) = f.sig.asyncness.take() {
                     f.sig.output = match &f.sig.output {
                         ReturnType::Default => parse_quote! {
-                            -> impl core::future::Future<Output = ()> + Send
+                            -> impl core::future::Future<Output = ()> + xy_rpc::maybe_send::MaybeSend
                         },
                         ReturnType::Type(_, ty) => parse_quote! {
-                            -> impl core::future::Future<Output = #ty> + Send
+                            -> impl core::future::Future<Output = #ty> + xy_rpc::maybe_send::MaybeSend
                         },
                     };
                 }
@@ -368,7 +327,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
          match rpc_call_fn.output {
             ReturnType::Default => {
                rpc_call_fn = parse_quote! {
-                  -> impl core::future::Future<Output = Result<(), xy_rpc::RpcError>> + Send +'static
+                  -> impl core::future::Future<Output = Result<(), xy_rpc::RpcError>> + xy_rpc::maybe_send::MaybeSend +'static
                }
             }
             ReturnType::Type(_, ty) => {
@@ -378,7 +337,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                   rpc_call_fn.asyncness = None;
                }
                rpc_call_fn.output = parse_quote! {
-                  -> impl core::future::Future<Output = Result<#output_ty, xy_rpc::RpcError>> + Send +'static
+                  -> impl core::future::Future<Output = Result<#output_ty, xy_rpc::RpcError>> + xy_rpc::maybe_send::MaybeSend +'static
                };
             }
          }
@@ -453,7 +412,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
             fn handle(
                 &self,
                 msg: #msg_enum_ident,
-            ) -> impl core::future::Future<Output = #msg_reply_enum_ident> + Send {
+            ) -> impl core::future::Future<Output = #msg_reply_enum_ident> + xy_rpc::maybe_send::MaybeSend {
                 async move {
                     match msg {
                         #(#match_expr)*
