@@ -14,7 +14,7 @@ pub mod compio;
 pub mod duplex;
 pub mod formats;
 mod frame;
-mod maybe_send;
+pub mod maybe_send;
 
 use crate::formats::SerdeFormat;
 use crate::frame::{
