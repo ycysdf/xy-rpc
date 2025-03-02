@@ -3,7 +3,7 @@ use std::future::Future;
 use std::time::Duration;
 use tokio::{select, try_join};
 use xy_rpc::formats::JsonFormat;
-use xy_rpc::tokio::serve_duplex;
+use xy_rpc::tokio::serve_duplex_tokio;
 use xy_rpc_macro::rpc_service;
 
 #[tokio::main]

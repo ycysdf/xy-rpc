@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use xy_rpc::compio::serve_duplex_from_compio;
 use xy_rpc::formats::SerdeFormat;
-use xy_rpc::tokio::{serve_duplex_from_tokio, serve_duplex_tokio};
 use xy_rpc_macro::rpc_service;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,69 +70,23 @@ impl SerdeFormat for MySerdeFormat {
     }
 }
 
-#[tokio::main]
+#[compio::main]
 async fn main() {
-    serve_duplex_tokio(
-        MySerdeFormat,
-        (
-            |_| TestClientService,
-            async |channel| {
-                for i in 0..3 {
-                    let r = channel
-                        .hello2(&ComplexObj {
-                            a: "A Value".to_string(),
-                            b: i,
-                            c: true,
-                            d: vec![1, 2, 3, 4, 5],
-                            e: vec!["a".to_string(), "b".to_string(), "c".to_string()],
-                            f: vec![true, false, true],
-                            g: vec![],
-                        })
-                        .await;
-                    println!("hello2 reply: {:?}", r);
-                }
-                Ok(())
-            },
-        ),
-        (
-            |_| TestServerService,
-            async |channel| {
-                for i in 0..3 {
-                    let r = channel
-                        .hello1(&ComplexObj {
-                            a: "SDF Value".to_string(),
-                            b: i,
-                            c: true,
-                            d: vec![1, 2, 3, 4, 5],
-                            e: vec!["a".to_string(), "b".to_string(), "c".to_string()],
-                            f: vec![true, false],
-                            g: vec![],
-                        })
-                        .await;
-                    println!("hello1 reply: {:?}", r);
-                }
-                Ok(())
-            },
-        ),
-    )
-    .await
-    .unwrap();
-
-
     let listener =
-       tokio::net::TcpListener::bind(SocketAddr::from((IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0)))
-          .await
-          .unwrap();
+        compio::net::TcpListener::bind(SocketAddr::from((IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0)))
+            .await
+            .unwrap();
     let addr = listener.local_addr().unwrap();
     let ((accepted_stream, _), connected_stream) = futures_util::try_join!(
         listener.accept(),
-        tokio::net::TcpStream::connect(SocketAddr::from((
+        compio::net::TcpStream::connect(SocketAddr::from((
             IpAddr::V4(Ipv4Addr::LOCALHOST),
             addr.port()
         )))
     )
-       .unwrap();
-    serve_duplex_from_tokio(
+    .unwrap();
+    println!("Accepted And Connected. addr: {addr:?}");
+    serve_duplex_from_compio(
         (accepted_stream.into_split(), connected_stream.into_split()),
         MySerdeFormat,
         (
