@@ -33,7 +33,7 @@ auto_enums = "0.8"
 derive_more = { version = "1", features = ["full"] }
 bit_field = "0.10"
 bytes = "1.10.0"
-xy-rpc-macro = { path = "crates/xy-rpc-macro", version = "0.1.0" }
+xy-rpc-macro = { path = "crates/xy-rpc-macro", version = "0.2.0" }
 tracing = "0.1"
 portable-atomic = { version = "1.10" }
 
