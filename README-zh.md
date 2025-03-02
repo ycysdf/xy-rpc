@@ -4,25 +4,19 @@
 
 # Xy Rpc
 
-<div>
-  <h6>
-    <a href="https://github.com/ycysdf/xy-rpc/blob/main/README-zh.md"> 中文 </a>
-  </h6>
-</div>
-
 ## Features
 
-- Over any transport By implementing `AsyncRead`、`AsyncWrite`
-- Bidirectional RPC
-- No Proto File. Define the schema through `Trait`
-- Supports any Serde-compatible serialization format
-- The Asynchronous Runtime is Agnostic
-- When invoking RPC methods with reference-type parameters, ownership consumption is not required
-- Supports non-Send types and single-threaded environments”
+- 通过实现 AsyncRead、AsyncWrite 可支持任意传输协议
+- 双向 RPC
+- 通过 Trait 定义服务，不需要 Proto 文件
+- 能够使用任何 Serde 序列化格式
+- 异步运行时无关
+- 调用 RPC 方法，参数是引用类型，不需要消耗所有权
+- 支持 No Send，支持单线程
 
-## Simple Example
+## 简单示例
 
-Define your Service in a public lib
+在一个公共库里面定义你的服务 Trait
 
 ```rust
 use xy_rpc::{formats::JsonFormat, rpc_service};
@@ -36,7 +30,7 @@ pub trait ExampleService: Send + Sync {
 }
 ```
 
-caller
+调用者：
 
 ```rust
 use crate::proto::*;
@@ -66,7 +60,7 @@ pub async fn main() {
 }
 ```
 
-Server
+服务端：
 
 ```rust
 use crate::proto::*;
@@ -99,9 +93,9 @@ pub async fn main() {
 }
 ```
 
-## Bidirectional RPC Example
+## 双向 RPC 示例
 
-Define services for both parties
+定义双方的服务 Trait
 
 ```rust
 use xy_rpc::{formats::JsonFormat, rpc_service};
@@ -122,7 +116,7 @@ pub trait ServerService: Send + Sync {
 }
 ```
 
-connector
+连接段：
 
 ```rust
 use crate::proto::*;
@@ -168,7 +162,7 @@ pub async fn main() {
 }
 ```
 
-Acceptor
+被连接端：
 
 ```rust
 use crate::proto::*;
