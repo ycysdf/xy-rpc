@@ -535,6 +535,7 @@ pub fn new_transport_sink(
         |mut write, frame: RpcFrame| async move {
             write_frame(&mut write, &frame.head).await?;
             write.write_all(&frame.payload).await?;
+            write.flush().await?;
             Ok(write)
         },
     ))
