@@ -19,6 +19,13 @@ pub trait SerdeFormat: Send + Sync + Clone + 'static {
     //     T: DeserializeOwned;
 }
 
+// pub trait DynSerdeFormat: Send + Sync + Clone + 'static {
+//     fn serialize_to_writer_dyn(&self, writer: &dyn Write, value: &dyn ) -> io::Result<()>;
+//     fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> io::Result<T>
+//     where
+//         T: Deserialize<'a>;
+// }
+
 #[cfg(feature = "format_json")]
 #[derive(Clone, Default, Debug)]
 pub struct JsonFormat;

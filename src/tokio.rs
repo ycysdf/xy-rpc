@@ -1,4 +1,5 @@
 use crate::formats::SerdeFormat;
+use crate::frame::RpcFrameHeadBits;
 use crate::maybe_send::MaybeSend;
 use crate::{
     ChannelBuilder, RpcError, RpcFrameHead, RpcMsgHandler, RpcMsgHandlerWrapper, RpcServiceSchema,
@@ -77,16 +78,17 @@ where
 
 pub async fn write_frame(
     mut write: impl AsyncWrite + Unpin,
-    frame: &RpcFrameHead,
+    frame: RpcFrameHead,
 ) -> Result<(), RpcError> {
-    let bits: u64 = frame.into();
-    write.write_u64(bits).await?;
+    let bits: RpcFrameHeadBits = frame.into();
+    write.write_all(bits.as_slice()).await?;
     Ok(())
 }
 
 pub async fn read_frame(mut read: impl AsyncRead + Unpin) -> Result<RpcFrameHead, RpcError> {
-    let bits = read.read_u64().await?;
-    bits.try_into()
+    let mut bits: RpcFrameHeadBits = [0; 8];
+    read.read_exact(&mut bits).await?;
+    Ok(bits.into())
 }
 
 #[cfg(feature = "duplex")]

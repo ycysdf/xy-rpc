@@ -79,10 +79,9 @@ where
 
 pub async fn write_frame(
     mut write: impl AsyncWrite + Unpin,
-    frame: &RpcFrameHead,
+    frame: RpcFrameHead,
 ) -> Result<(), RpcError> {
-    let bits: u64 = frame.into();
-    write.write_u64(bits).await?;
+    write.write_all(frame.bytes().as_slice()).await?;
     Ok(())
 }
 

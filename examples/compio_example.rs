@@ -92,18 +92,18 @@ async fn main() {
         (
             |_| TestClientService,
             async |channel| {
+                let mut obj = ComplexObj {
+                    a: "A Value".to_string(),
+                    b: 0,
+                    c: true,
+                    d: vec![1, 2, 3, 4, 5],
+                    e: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+                    f: vec![true, false, true],
+                    g: vec![],
+                };
                 for i in 0..3 {
-                    let r = channel
-                        .hello2(&ComplexObj {
-                            a: "A Value".to_string(),
-                            b: i,
-                            c: true,
-                            d: vec![1, 2, 3, 4, 5],
-                            e: vec!["a".to_string(), "b".to_string(), "c".to_string()],
-                            f: vec![true, false, true],
-                            g: vec![],
-                        })
-                        .await;
+                    obj.b = i;
+                    let r = channel.hello2(&obj).await;
                     println!("hello2 reply: {:?}", r);
                 }
                 Ok(())
@@ -112,18 +112,18 @@ async fn main() {
         (
             |_| TestServerService,
             async |channel| {
+                let mut obj = ComplexObj {
+                    a: "SDF Value".to_string(),
+                    b: 0,
+                    c: true,
+                    d: vec![1, 2, 3, 4, 5],
+                    e: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+                    f: vec![true, false],
+                    g: vec![],
+                };
                 for i in 0..3 {
-                    let r = channel
-                        .hello1(&ComplexObj {
-                            a: "SDF Value".to_string(),
-                            b: i,
-                            c: true,
-                            d: vec![1, 2, 3, 4, 5],
-                            e: vec!["a".to_string(), "b".to_string(), "c".to_string()],
-                            f: vec![true, false],
-                            g: vec![],
-                        })
-                        .await;
+                    obj.b = i;
+                    let r = channel.hello1(&obj).await;
                     println!("hello1 reply: {:?}", r);
                 }
                 Ok(())

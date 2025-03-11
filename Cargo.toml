@@ -19,6 +19,7 @@ format_json = ["dep:serde_json"]
 format_message_pack = ["dep:rmp-serde"]
 duplex = ["rt_tokio_without_send_sync"]
 send_sync = []
+stream = []
 [workspace]
 members = ["crates/xy-rpc-macro", "examples/wasm_play"]
 
@@ -36,7 +37,7 @@ bytes = "1.10.0"
 xy-rpc-macro = { path = "crates/xy-rpc-macro", version = "0.2.0" }
 tracing = "0.1"
 portable-atomic = { version = "1.10" }
-
+pin-project = "1"
 compio = { version = "0.13", optional = true, features = ["io-compat"] }
 
 tokio = { version = "1", features = ["net", "io-util"], default-features = false, optional = true }
@@ -44,6 +45,8 @@ tokio-util = { version = "0.7", features = ["compat"], default-features = false,
 axum = { version = "0.8", features = [], default-features = false, optional = true }
 dashmap = { version = "6.1", optional = true }
 rmp-serde = { version = "1.3", optional = true }
+#erased-serde = "0.4"
+modular-bitfield = { version = "0.11", features = [] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ts-rs = "10"
@@ -62,6 +65,7 @@ pin-project = "1"
 [dev-dependencies]
 dashmap = "6.1"
 axum = { version = "0.8", features = [] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio-util = { version = "0.7", features = ["io"], default-features = false }
 tokio = { version = "1", features = ["full"] }
 xy-rpc = { path = ".", features = ["rt_tokio_without_send_sync", "axum", "format_json", "format_message_pack", "duplex"] }

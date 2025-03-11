@@ -27,5 +27,5 @@ pub type BoxedFutureMaybeLocal<'a, T> = futures_util::future::LocalBoxFuture<'a,
 #[cfg(feature = "send_sync")]
 pub type BoxedStreamMaybeLocal<'a, T> = futures_util::stream::BoxStream<'a, T>;
 
-// #[cfg(not(feature = "send_sync"))]
-// pub type BoxedStreamMaybeLocal<'a, T> = futures_util::stream::LocalBoxStream<'a, T>;
+#[cfg(not(feature = "send_sync"))]
+pub type BoxedStreamMaybeLocal<'a, T> = futures_util::stream::LocalBoxStream<'a, T>;
