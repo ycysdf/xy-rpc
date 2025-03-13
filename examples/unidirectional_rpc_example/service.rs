@@ -1,5 +1,5 @@
 use crate::proto::*;
-use std::net::SocketAddr;
+use core::net::SocketAddr;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
 
 #[path = "proto.rs"]

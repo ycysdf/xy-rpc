@@ -1,7 +1,7 @@
 use futures_util::{AsyncRead, Stream};
 use serde::{Deserialize, Serialize};
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use xy_rpc::formats::SerdeFormat;
 use xy_rpc::maybe_send::{MaybeSend, MaybeSync};
 use xy_rpc::{RpcError, TransStream};

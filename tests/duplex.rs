@@ -48,7 +48,7 @@ mod tests {
     }
 
     use serde::{Deserialize, Serialize};
-    use std::time::Duration;
+    use core::time::Duration;
     use tokio::try_join;
     use xy_rpc::formats::JsonFormat;
     use xy_rpc::tokio::serve_duplex_tokio;

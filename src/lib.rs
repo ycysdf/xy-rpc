@@ -1,7 +1,14 @@
+#![no_std]
+extern crate alloc;
+
+#[cfg(feature = "std")]
+extern crate std;
+
 // #[cfg(feature = "axum")]
 // pub mod axum;
 // #[cfg(target_arch = "wasm32")]
 // pub mod web;
+use alloc::boxed::Box;
 pub use auto_enums::enum_derive;
 pub use flume;
 #[cfg(feature = "rt_tokio_without_send_sync")]
@@ -18,26 +25,24 @@ pub mod formats;
 mod frame;
 mod handle_rpc;
 pub mod maybe_send;
-mod read_stream;
+pub mod read_stream;
+pub mod temp_buf;
 
 pub use handle_rpc::*;
 
 pub use channel::*;
 
 use crate::formats::SerdeFormat;
-use crate::frame::{RpcFrame, RpcFrameHead, RpcMsgKind, read_frame, write_frame};
+use crate::frame::{RpcFrame, RpcFrameHead, RpcMsgKind};
 use crate::maybe_send::{MaybeSend, MaybeSync};
 use bytes::{Bytes, BytesMut};
-use derive_more::{Display, Error, From};
-use futures_util::{
-    AsyncReadExt, AsyncWriteExt, FutureExt, Sink, SinkExt, Stream, StreamExt, TryStream,
-    TryStreamExt,
-};
+use core::fmt::{Debug, Formatter};
+use core::future::Future;
+use core::marker::PhantomData;
+use derive_more::{Display, Error};
+use futures_util::{AsyncReadExt, AsyncWriteExt, Sink, StreamExt, TryStream};
+use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Formatter};
-use std::future::Future;
-use std::marker::PhantomData;
 pub use xy_rpc_macro::rpc_service;
 
 #[derive(Error, Debug)]
@@ -46,7 +51,7 @@ pub struct RpcMsgItem<T = Bytes> {
     pub msg: T,
 }
 impl Display for RpcMsgItem {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         Debug::fmt(self, f)
     }
 }
@@ -236,6 +241,7 @@ impl<SF, CS, MH, MSG> ChannelBuilder<SF, CS, MH, MSG>
 where
     SF: SerdeFormat,
 {
+    #[cfg(feature = "std")]
     pub fn build_from_read_write(
         self,
         (read, write): (
@@ -281,12 +287,14 @@ pub struct RpcMsgHandlerWrapper<T> {
     pub service: T,
 }
 
+
+#[cfg(feature = "std")]
 pub fn new_transport_stream(
     read: impl futures_util::AsyncRead + Unpin + MaybeSend + 'static,
 ) -> impl RpcTransportStream<Error = RpcError> + Unpin {
     let buf = BytesMut::with_capacity(1024 * 8);
     let future = futures_util::stream::unfold((read, buf), move |(mut read, mut buf)| async move {
-        match read_frame(&mut read).await? {
+        match frame::read_frame(&mut read).await? {
             Ok(frame_head) => {
                 let payload_len = frame_head.payload_len();
                 if payload_len == 0 {
@@ -328,13 +336,14 @@ pub fn new_transport_stream(
     }
 }
 
+#[cfg(feature = "std")]
 pub fn new_transport_sink(
     write: impl futures_util::AsyncWrite + Unpin + MaybeSend + 'static,
 ) -> impl RpcTransportSink<Error = RpcError> + Unpin {
     Box::pin(futures_util::sink::unfold(
         write,
         |mut write, frame: RpcFrame| async move {
-            write_frame(&mut write, frame.head).await?;
+            frame::write_frame(&mut write, frame.head).await?;
             write.write_all(&frame.payload).await?;
             write.flush().await?;
             Ok(write)

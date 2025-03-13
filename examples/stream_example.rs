@@ -1,7 +1,7 @@
 use futures_util::{Stream, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use std::pin::pin;
+use core::pin::pin;
 use tracing::info;
 use xy_rpc::formats::{JsonFormat, SerdeFormat};
 use xy_rpc::maybe_send::MaybeSend;

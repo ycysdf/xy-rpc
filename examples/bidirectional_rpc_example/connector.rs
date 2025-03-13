@@ -1,6 +1,6 @@
 use crate::proto::*;
-use std::net::SocketAddr;
-use std::time::Duration;
+use core::net::SocketAddr;
+use core::time::Duration;
 use xy_rpc::XyRpcChannel;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
 

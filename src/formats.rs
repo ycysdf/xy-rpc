@@ -1,38 +1,41 @@
-use bytes::{Buf, Bytes};
-use derive_more::{Deref, DerefMut, From};
-use serde::{Deserialize, Serialize, Serializer};
-use std::any::type_name;
-use std::io;
-use std::io::Write;
-use std::mem::ManuallyDrop;
+use crate::maybe_send::{AnyError, MaybeSend, MaybeSync};
+use alloc::boxed::Box;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use core::mem::ManuallyDrop;
+use serde::{Deserialize, Serialize};
 use try_specialize::TrySpecialize;
 
-pub trait SerdeFormat: Send + Sync + Clone + 'static {
-    fn serialize_to_writer<W, T>(&self, writer: W, value: &T) -> io::Result<()>
+pub trait SerdeFormat: MaybeSend + MaybeSync + Clone + 'static {
+    fn serialize_to_buf<T>(&self, writer: &mut BytesMut, value: &T) -> Result<(), AnyError>
     where
-        W: Write,
         T: ?Sized + Serialize;
-    fn serialize_to_writer_optimized<W, T>(&self, mut writer: W, value: &T) -> io::Result<()>
+    fn serialize_to_writer_optimized<T>(
+        &self,
+        writer: &mut BytesMut,
+        value: &T,
+    ) -> Result<(), AnyError>
     where
-        W: Write,
         T: ?Sized + Serialize,
     {
         // return self.serialize_to_writer(writer, value);
         if let Some(bytes) = unsafe { value.try_specialize_ref_ignore_lifetimes::<Bytes>() } {
-            writer.write_all(bytes.chunk())?;
+            writer.put_slice(bytes.chunk());
             Ok(())
         } else {
-            self.serialize_to_writer(writer, value)
+            self.serialize_to_buf(writer, value)
         }
     }
-    // fn serialize_to_vec<T>(value: &T) -> io::Result<Vec<u8>>
+    // fn serialize_to_vec<T>(value: &T) -> Result<Vec<u8>,Box<dyn Error+MaybeSend>
     // where
     //     T: ?Sized + Serialize;
-    fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> io::Result<T>
+    fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> Result<T, AnyError>
     where
         T: ?Sized + Deserialize<'a>;
 
-    fn deserialize_from_slice_optimized<'a, T>(&self, v: &'a impl AsRef<[u8]>) -> io::Result<T>
+    fn deserialize_from_slice_optimized<'a, T>(
+        &self,
+        v: &'a impl AsRef<[u8]>,
+    ) -> Result<T, AnyError>
     where
         T: ?Sized + Deserialize<'a>,
     {
@@ -52,15 +55,15 @@ pub trait SerdeFormat: Send + Sync + Clone + 'static {
             self.deserialize_from_slice(v.as_ref())
         }
     }
-    // fn deserialize_from_reader<R, T>(&self, reader: R) -> io::Result<T>
+    // fn deserialize_from_reader<R, T>(&self, reader: R) -> Result<T,Box<dyn Error+MaybeSend>
     // where
     //     R: Read,
     //     T: DeserializeOwned;
 }
 
 // pub trait DynSerdeFormat: Send + Sync + Clone + 'static {
-//     fn serialize_to_writer_dyn(&self, writer: &dyn Write, value: &dyn ) -> io::Result<()>;
-//     fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> io::Result<T>
+//     fn serialize_to_writer_dyn(&self, writer: &dyn Write, value: &dyn ) -> Result(),AnyError;
+//     fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> Result<T,Box<dyn Error+MaybeSend>
 //     where
 //         T: Deserialize<'a>;
 // }
@@ -71,29 +74,28 @@ pub struct JsonFormat;
 
 #[cfg(feature = "format_json")]
 impl SerdeFormat for JsonFormat {
-    fn serialize_to_writer<W, T>(&self, writer: W, value: &T) -> io::Result<()>
+    fn serialize_to_buf<T>(&self, writer: &mut BytesMut, value: &T) -> Result<(), AnyError>
     where
-        W: Write,
         T: ?Sized + Serialize,
     {
-        Ok(serde_json::to_writer(writer, value)?)
+        Ok(serde_json::to_writer(writer.writer(), value)?)
     }
 
-    // fn serialize_to_vec<T>(value: &T) -> io::Result<Vec<u8>>
+    // fn serialize_to_vec<T>(value: &T) -> Result<Vec<u8>,Box<dyn Error+MaybeSend>
     // where
     //     T: ?Sized + Serialize,
     // {
     //     Ok(serde_json::to_vec(value)?)
     // }
 
-    fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> io::Result<T>
+    fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> Result<T, AnyError>
     where
         T: Deserialize<'a>,
     {
         Ok(serde_json::from_slice(v)?)
     }
 
-    // fn deserialize_from_reader<R, T>(&self, reader: R) -> io::Result<T>
+    // fn deserialize_from_reader<R, T>(&self, reader: R) -> Result<T,Box<dyn Error+MaybeSend>
     // where
     //     R: Read,
     //     T: DeserializeOwned,
@@ -108,34 +110,33 @@ pub struct MessagePackFormat;
 
 #[cfg(feature = "format_message_pack")]
 impl SerdeFormat for MessagePackFormat {
-    fn serialize_to_writer<W, T>(&self, mut writer: W, value: &T) -> io::Result<()>
+    fn serialize_to_buf<T>(&self, writer: &mut BytesMut, value: &T) -> Result<(), AnyError>
     where
-        W: Write,
         T: ?Sized + Serialize,
     {
-        Ok(rmp_serde::encode::write(&mut writer, value).map_err(|err| io::Error::other(err))?)
+        Ok(rmp_serde::encode::write(&mut writer.writer(), value).map_err(|err| Box::new(err))?)
     }
 
-    // fn serialize_to_vec<T>(value: &T) -> io::Result<Vec<u8>>
+    // fn serialize_to_vec<T>(value: &T) -> Result<Vec<u8>,Box<dyn Error+MaybeSend>
     // where
     //     T: ?Sized + Serialize,
     // {
-    //     Ok(rmp_serde::to_vec(value).map_err(|err| io::Error::other(err))?)
+    //     Ok(rmp_serde::to_vec(value).map_err(|err| Box::new(err))?)
     // }
 
-    fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> io::Result<T>
+    fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> Result<T, AnyError>
     where
         T: Deserialize<'a>,
     {
-        Ok(rmp_serde::from_slice(v).map_err(|err| io::Error::other(err))?)
+        Ok(rmp_serde::from_slice(v).map_err(|err| Box::new(err))?)
     }
 
-    // fn deserialize_from_reader<R, T>(&self, reader: R) -> io::Result<T>
+    // fn deserialize_from_reader<R, T>(&self, reader: R) -> Result<T,Box<dyn Error+MaybeSend>
     // where
     //     R: Read,
     //     T: DeserializeOwned,
     // {
-    //     Ok(rmp_serde::decode::from_read(reader).map_err(|err| io::Error::other(err))?)
+    //     Ok(rmp_serde::decode::from_read(reader).map_err(|err| Box::new(err))?)
     // }
 }
 // #[derive(From, Deref, DerefMut, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

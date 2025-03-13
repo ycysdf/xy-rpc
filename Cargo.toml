@@ -13,11 +13,12 @@ repository = "https://github.com/ycysdf/xy-rpc"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = []
-rt_tokio_without_send_sync = ["dep:tokio", "dep:tokio-util"]
+default = ["std"]
+std = []
+rt_tokio_without_send_sync = ["std", "dep:tokio", "dep:tokio-util"]
 rt_tokio = ["rt_tokio_without_send_sync", "send_sync"]
-rt_compio = ["dep:compio"]
-axum = ["dep:axum", "dashmap"]
+rt_compio = ["std", "dep:compio"]
+axum = ["std", "dep:axum", "dashmap"]
 format_json = ["dep:serde_json"]
 format_message_pack = ["dep:rmp-serde"]
 duplex = ["rt_tokio_without_send_sync"]
@@ -41,7 +42,7 @@ portable-atomic = { version = "1.10" }
 pin-project = "1"
 compio = { version = "0.13", optional = true, features = ["io-compat"] }
 try-specialize = { version = "0.1" }
-
+hashbrown = { version = "0.15" }
 tokio = { version = "1", features = ["net", "io-util"], default-features = false, optional = true }
 tokio-util = { version = "0.7", features = ["compat"], default-features = false, optional = true }
 axum = { version = "0.8", features = [], default-features = false, optional = true }

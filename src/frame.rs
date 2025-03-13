@@ -1,11 +1,13 @@
+#![allow(non_snake_case)]
 use crate::{RpcError, RpcOpId};
-use bit_field::{BitArray, BitField};
+use alloc::string::String;
+use bit_field::BitArray;
 use bytes::Bytes;
+use core::fmt::{Debug, Formatter};
 use futures_util::{AsyncReadExt, AsyncWriteExt};
 use modular_bitfield::prelude::{B4, B12, B32};
 use modular_bitfield::{BitfieldSpecifier, Specifier, bitfield};
 use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Formatter};
 
 pub type RpcMsgSendId = u16;
 pub type RpcMsgKind = u16;
@@ -50,7 +52,7 @@ pub struct RpcFrame {
 }
 
 impl Debug for RpcFrame {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("RpcFrame")
             .field("head", &self.head)
             .field("payload", &String::from_utf8_lossy(&self.payload))
@@ -203,6 +205,8 @@ impl Into<RpcFrameHeadBits> for RpcFrameHead {
     }
 }
 
+
+#[cfg(feature = "std")]
 pub async fn write_frame(
     mut write: impl futures_util::AsyncWrite + Unpin,
     frame: RpcFrameHead,
@@ -214,6 +218,7 @@ pub async fn write_frame(
     Ok(())
 }
 
+#[cfg(feature = "std")]
 pub async fn read_frame(
     mut read: impl futures_util::AsyncRead + Unpin,
 ) -> Option<Result<RpcFrameHead, RpcError>> {

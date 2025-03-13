@@ -40,8 +40,8 @@ caller
 
 ```rust
 use crate::proto::*;
-use std::net::SocketAddr;
-use std::time::Duration;
+use core::net::SocketAddr;
+use core::time::Duration;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
 
 #[path = "proto.rs"]
@@ -70,7 +70,7 @@ Server
 
 ```rust
 use crate::proto::*;
-use std::net::SocketAddr;
+use core::net::SocketAddr;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
 
 #[path = "proto.rs"]
@@ -126,8 +126,8 @@ connector
 
 ```rust
 use crate::proto::*;
-use std::net::SocketAddr;
-use std::time::Duration;
+use core::net::SocketAddr;
+use core::time::Duration;
 use xy_rpc::XyRpcChannel;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
 
@@ -172,7 +172,7 @@ Acceptor
 
 ```rust
 use crate::proto::*;
-use std::net::SocketAddr;
+use core::net::SocketAddr;
 use xy_rpc::XyRpcChannel;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
 

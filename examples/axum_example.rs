@@ -1,6 +1,6 @@
 use futures_util::{FutureExt, StreamExt};
-use std::future::Future;
-use std::time::Duration;
+use core::future::Future;
+use core::time::Duration;
 use tokio::{select, try_join};
 use xy_rpc::formats::JsonFormat;
 use xy_rpc::tokio::serve_duplex_tokio;

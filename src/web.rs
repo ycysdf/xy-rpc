@@ -3,8 +3,8 @@ use futures_util::SinkExt;
 use gloo_net::Error;
 use js_sys::Uint8Array;
 use pin_project::pin_project;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use wasm_bindgen::JsValue;
 use web_sys::{ReadableStream, WritableStream};
 
@@ -100,7 +100,7 @@ impl<T: futures_util::AsyncRead> futures_util::AsyncRead for ForceSend<T> {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<std::io::Result<usize>> {
+    ) -> Poll<core::io::Result<usize>> {
         self.project().0.poll_read(cx, buf)
     }
 }
@@ -110,15 +110,15 @@ impl<T: futures_util::AsyncWrite> futures_util::AsyncWrite for ForceSend<T> {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
+    ) -> Poll<core::io::Result<usize>> {
         self.project().0.poll_write(cx, buf)
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<core::io::Result<()>> {
         self.project().0.poll_flush(cx)
     }
 
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<core::io::Result<()>> {
         self.project().0.poll_close(cx)
     }
 }

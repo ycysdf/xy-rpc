@@ -1,13 +1,15 @@
 use crate::formats::SerdeFormat;
+use crate::frame::RpcFrameHeadBits;
 use crate::maybe_send::MaybeSend;
 use crate::{
     ChannelBuilder, RpcError, RpcFrameHead, RpcMsgHandler, RpcMsgHandlerWrapper, RpcServiceSchema,
     ServiceFactory, XyRpcChannel, new_transport_sink, new_transport_stream,
 };
+use alloc::format;
 use compio::io::compat::AsyncStream;
 use compio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use core::future::Future;
 use futures_util::future::Either;
-use std::future::Future;
 
 pub trait ChannelBuilderCompioExt<SF, CS, MH, MSG> {
     fn build_from_compio(
@@ -81,13 +83,21 @@ pub async fn write_frame(
     mut write: impl AsyncWrite + Unpin,
     frame: RpcFrameHead,
 ) -> Result<(), RpcError> {
-    write.write_all(frame.bytes().as_slice()).await?;
+    let bits: RpcFrameHeadBits = frame.into();
+    let result = write.write_all(bits).await;
+    if result.is_ok() {
+        write.flush().await?;
+    }
+    result.0.map_err(|_| RpcError::WriteError {
+        bytes: result.1.to_vec(),
+    })?;
     Ok(())
 }
 
 pub async fn read_frame(mut read: impl AsyncRead + Unpin) -> Result<RpcFrameHead, RpcError> {
-    let bits = read.read_u64().await?;
-    bits.try_into()
+    let mut bits: RpcFrameHeadBits = [0; 8];
+    read.read_exact(bits).await.0?;
+    Ok(bits.into())
 }
 
 // #[cfg(feature = "duplex")]
@@ -170,13 +180,13 @@ where
     RpcMsgHandlerWrapper<T1>: RpcMsgHandler<CS1>,
     RpcMsgHandlerWrapper<T2>: RpcMsgHandler<CS2>,
 {
-    let json_channel_builder = ChannelBuilder::new(serde_format);
+    let channel_builder = ChannelBuilder::new(serde_format);
 
-    let (channel, serve_future_1) = json_channel_builder
+    let (channel, serve_future_1) = channel_builder
         .clone()
         .call_and_serve(serve1)
         .build_from_compio_read_write(duplex1);
-    let (channel2, serve_future_2) = json_channel_builder
+    let (channel2, serve_future_2) = channel_builder
         .call_and_serve(serve2)
         .build_from_compio_read_write(duplex2);
 
@@ -188,9 +198,9 @@ where
                 async move { futures_util::try_join!(f1(channel), f2(channel2)) },
             )
         },
-        compio::runtime::spawn(async move {
-            futures_util::try_join!(serve_future_1, serve_future_2)
-        }),
+        compio::runtime::spawn(
+            async move { futures_util::try_join!(serve_future_1, serve_future_2) },
+        ),
     )
     .await
     {

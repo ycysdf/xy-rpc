@@ -34,8 +34,8 @@ pub trait ExampleService: Send + Sync {
 
 ```rust
 use crate::proto::*;
-use std::net::SocketAddr;
-use std::time::Duration;
+use core::net::SocketAddr;
+use core::time::Duration;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
 
 #[path = "proto.rs"]
@@ -64,7 +64,7 @@ pub async fn main() {
 
 ```rust
 use crate::proto::*;
-use std::net::SocketAddr;
+use core::net::SocketAddr;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
 
 #[path = "proto.rs"]
@@ -120,8 +120,8 @@ pub trait ServerService: Send + Sync {
 
 ```rust
 use crate::proto::*;
-use std::net::SocketAddr;
-use std::time::Duration;
+use core::net::SocketAddr;
+use core::time::Duration;
 use xy_rpc::XyRpcChannel;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
 
@@ -166,7 +166,7 @@ pub async fn main() {
 
 ```rust
 use crate::proto::*;
-use std::net::SocketAddr;
+use core::net::SocketAddr;
 use xy_rpc::XyRpcChannel;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
 

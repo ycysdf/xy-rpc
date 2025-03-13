@@ -1,27 +1,28 @@
-use crate::formats::{SerdeFormat};
+use crate::formats::SerdeFormat;
 use crate::frame::{
     RpcFrame, RpcFrameHead, RpcFrameHeadRpc, RpcMsgKind, RpcMsgSendId, RpcStreamKind,
 };
 use crate::handle_rpc::{HandleRpc, OneOrMultiSender};
-use crate::maybe_send::MaybeSend;
+use crate::maybe_send::{AnyError, MaybeSend};
 use crate::{
     HandleReply, RpcMsgHandler, RpcRawMsg, RpcServiceSchema, RpcTransportSink, RpcTransportStream,
-    ServiceFactory, maybe_send,
+    ServiceFactory, maybe_send, temp_buf,
 };
+use alloc::string::String;
+use alloc::sync::Arc;
 use auto_enums::enum_derive;
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::Bytes;
+use core::fmt::Debug;
+use core::marker::PhantomData;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use derive_more::{Display, Error, From};
 use futures_util::stream::FuturesUnordered;
 use futures_util::{FutureExt, SinkExt, Stream, StreamExt, TryStreamExt};
+use hashbrown::HashMap;
 use pin_project::pin_project;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
 use tracing::{info, warn};
 use try_specialize::TrySpecialize;
 
@@ -34,9 +35,14 @@ pub struct RpcOpId {
 
 #[derive(Error, From, Display, Debug)]
 pub enum RpcError {
+    #[cfg(feature = "std")]
     Io(std::io::Error),
     #[from(ignore)]
-    SerdeError(std::io::Error),
+    SerdeError(AnyError),
+    #[display("write error. len: {}",bytes.len())]
+    WriteError {
+        bytes: alloc::vec::Vec<u8>,
+    },
     InvalidFrame,
     InvalidMsg,
     InvalidMsgKind,
@@ -64,7 +70,7 @@ impl RpcError {
     }
 }
 
-pub(crate) enum InnerMsg {
+pub enum InnerMsg {
     Call {
         op_id: RpcOpId,
         msg: Bytes,
@@ -102,10 +108,6 @@ where
             _marker: Default::default(),
         }
     }
-}
-
-thread_local! {
-    pub static BUF: std::cell::RefCell<BytesMut> = std::cell::RefCell::new(BytesMut::with_capacity(1024 * 8));
 }
 
 impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
@@ -409,7 +411,7 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
     + 'static {
         let send_id = self
             .sender_id_atomic
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
         let op_id = RpcOpId {
             msg_kind,
             msg_id: send_id,
@@ -419,15 +421,12 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
         {
             raw_bytes.clone()
         } else {
-            match BUF
-                .with_borrow_mut(|buf| {
-                    buf.clear();
-                    self.serde_format
-                        .serialize_to_writer_optimized(buf.writer(), msg)?;
-                    let payload = buf.split().freeze();
-                    Ok(payload)
-                })
-                .map_err(RpcError::SerdeError)
+            match temp_buf::with_buf(|buf| {
+                self.serde_format.serialize_to_writer_optimized(buf, msg)?;
+                let payload = buf.split().freeze();
+                Ok(payload)
+            })
+            .map_err(RpcError::SerdeError)
             {
                 Ok(msg) => msg,
                 Err(err) => return futures_util::future::ready(Err(err)).left_future(),

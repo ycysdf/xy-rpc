@@ -1,8 +1,9 @@
+use bytes::{BufMut, BytesMut};
+use core::net::{IpAddr, Ipv4Addr, SocketAddr};
 use serde::{Deserialize, Serialize};
-use std::io::Write;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use xy_rpc::compio::serve_duplex_from_compio;
 use xy_rpc::formats::SerdeFormat;
+use xy_rpc::maybe_send::AnyError;
 use xy_rpc_macro::rpc_service;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,22 +52,20 @@ impl ServerService for TestServerService {
 struct MySerdeFormat;
 
 impl SerdeFormat for MySerdeFormat {
-    fn serialize_to_writer<W, T>(&self, writer: W, value: &T) -> std::io::Result<()>
+    fn serialize_to_buf<T>(&self, writer: &mut BytesMut, value: &T) -> Result<(), AnyError>
     where
-        W: Write,
         T: ?Sized + Serialize,
     {
         use bincode;
-        bincode::serialize_into(writer, value)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        Ok(bincode::serialize_into(writer.writer(), value).map_err(|e| Box::new(e))?)
     }
 
-    fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> std::io::Result<T>
+    fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> Result<T, AnyError>
     where
         T: Deserialize<'a>,
     {
         use bincode;
-        bincode::deserialize(v).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        Ok(bincode::deserialize(v).map_err(|e| Box::new(e))?)
     }
 }
 

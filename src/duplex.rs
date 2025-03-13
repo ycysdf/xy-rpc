@@ -51,12 +51,12 @@ where
         .build_from_read_write(duplex2);
 
     let r = match futures_util::future::select(
-        std::pin::pin!({
+        core::pin::pin!({
             let channel = channel.clone();
             let channel2 = channel2.clone();
             async move { futures_util::try_join!(f1(channel), f2(channel2)) }
         }),
-        std::pin::pin!(async move { futures_util::try_join!(serve_future_1, serve_future_2) }),
+        core::pin::pin!(async move { futures_util::try_join!(serve_future_1, serve_future_2) }),
     )
     .await
     {

@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use alloc::boxed::Box;
+use core::error::Error;
 pub use send_sync::*;
 
 #[cfg(feature = "send_sync")]
@@ -29,3 +31,8 @@ pub type BoxedStreamMaybeLocal<'a, T> = futures_util::stream::BoxStream<'a, T>;
 
 #[cfg(not(feature = "send_sync"))]
 pub type BoxedStreamMaybeLocal<'a, T> = futures_util::stream::LocalBoxStream<'a, T>;
+#[cfg(feature = "send_sync")]
+pub type AnyError = Box<dyn Error + Send>;
+
+#[cfg(not(feature = "send_sync"))]
+pub type AnyError = Box<dyn Error>;

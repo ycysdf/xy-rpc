@@ -6,7 +6,7 @@ use crate::{
     ServiceFactory, XyRpcChannel, new_transport_sink, new_transport_stream,
 };
 use futures_util::future::Either;
-use std::future::Future;
+use core::future::Future;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -173,7 +173,7 @@ where
         .build_from_tokio_read_write(duplex2);
 
     let r = match futures_util::future::select(
-        std::pin::pin!({
+        core::pin::pin!({
             let channel = channel.clone();
             let channel2 = channel2.clone();
             let future = async move { futures_util::try_join!(f1(channel), f2(channel2)) };
@@ -186,7 +186,7 @@ where
                 future
             }
         }),
-        std::pin::pin!({
+        core::pin::pin!({
             let future = async move { futures_util::try_join!(serve_future_1, serve_future_2) };
             #[cfg(feature = "send_sync")]
             {

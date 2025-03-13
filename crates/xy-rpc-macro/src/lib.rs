@@ -1,16 +1,15 @@
 use convert_case::{Case, Casing};
+use core::iter::once;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::{format_ident, quote};
-use std::iter::once;
 use syn::punctuated::Punctuated;
-use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{
-    Field, FieldMutability, Fields, FieldsNamed, FnArg, GenericArgument, GenericParam, Generics,
-    ItemStruct, ItemTrait, Lifetime, LifetimeParam, PatType, PathArguments, PathSegment,
-    ReturnType, Token, TraitItem, TraitItemFn, Type, TypeParamBound, TypeReference, VisRestricted,
-    Visibility, parse_macro_input, parse_quote,
+   parse_macro_input, parse_quote, Field, FieldMutability, Fields, FieldsNamed, FnArg, GenericArgument,
+   GenericParam, Generics, ItemStruct, ItemTrait, Lifetime, LifetimeParam, PatType,
+   PathArguments, PathSegment, ReturnType, Token, TraitItem, TraitItemFn, Type
+   , TypeParamBound, TypeReference,
 };
 
 #[proc_macro_attribute]
@@ -292,10 +291,8 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
             {
                   let reply_handle = match get_output_stream_item(&n) {
                      None => quote! {
-                            let reply = xy_rpc::BUF
-                               .with_borrow_mut(|buf| {
-                                   buf.clear();
-                                   serde_format.serialize_to_writer_optimized(buf.writer(), &reply)
+                            let reply = xy_rpc::temp_buf::with_buf(|buf| {
+                                   serde_format.serialize_to_writer_optimized(buf, &reply)
                                        .map(|_| buf.split().freeze())
                                        .map_err(xy_rpc::RpcError::SerdeError)
                                })?;
@@ -305,10 +302,8 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         use futures_util::stream::StreamExt;
                         Ok(xy_rpc::HandleReply::Stream(Box::pin(reply.map(move |n| {
                               let n = n?;
-                               let reply = xy_rpc::BUF
-                                  .with_borrow_mut(|buf| {
-                                      buf.clear();
-                                      serde_format.serialize_to_writer_optimized::<_, #item_ty>(buf.writer(), &n)
+                               let reply = xy_rpc::temp_buf::with_buf(|buf| {
+                                      serde_format.serialize_to_writer_optimized::<#item_ty>(buf, &n)
                                           .map(|_| buf.split().freeze())
                                           .map_err(xy_rpc::RpcError::SerdeError)
                                   })?;
