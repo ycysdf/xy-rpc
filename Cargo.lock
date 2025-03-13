@@ -172,6 +172,9 @@ name = "bytes"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f61dac84819c6588b558454b194026eb1f09c293b9036ae9b159e74e73ab6cf9"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "cc"
@@ -1697,6 +1700,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "try-specialize"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "deb7b5b80a5727fb1f34fb2fb2997abab9faea872b8b01c552ab3bf3f2b424c1"
+
+[[package]]
 name = "ts-rs"
 version = "10.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1869,22 +1878,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
-]
-
-[[package]]
-name = "wasm_play"
-version = "0.1.0"
-dependencies = [
- "gloo-net",
- "js-sys",
- "pin-project",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-streams",
- "web-sys",
- "xy-rpc",
 ]
 
 [[package]]
@@ -2072,6 +2065,7 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-subscriber",
+ "try-specialize",
  "ts-rs",
  "uuid",
  "wasm-bindgen",

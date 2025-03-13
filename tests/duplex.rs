@@ -16,7 +16,7 @@ mod tests {
     impl RpcTest2Service for Test2Service {
         fn hello(&self, x: u32) -> impl Future<Output = u32> + Send {
             async move {
-                tokio::time::sleep(Duration::from_secs(x as _)).await;
+                tokio::time::sleep(Duration::from_millis(x as _)).await;
                 x
             }
         }
@@ -33,7 +33,7 @@ mod tests {
     impl RpcTestService for TestService {
         fn a(&self, x: u32) -> impl Future<Output = u32> + Send {
             async move {
-                tokio::time::sleep(Duration::from_secs(x as _)).await;
+                tokio::time::sleep(Duration::from_millis(x as _)).await;
                 x
             }
         }
@@ -93,20 +93,20 @@ mod tests {
                 |_| TestService,
                 async |channel| {
                     let r = try_join!(
-                        channel.hello(&1),
-                        channel.hello(&2),
-                        channel.hello(&3),
-                        channel.hello(&4)
+                        channel.hello(&100),
+                        channel.hello(&200),
+                        channel.hello(&300),
+                        channel.hello(&400)
                     )?;
-                    assert_eq!(r, (1, 2, 3, 4));
+                    assert_eq!(r, (100, 200, 300, 400));
                     Ok(())
                 },
             ),
             (
                 |_| Test2Service,
                 async |channel| {
-                    let r = try_join!(channel.a(&1), channel.a(&2), channel.a(&3), channel.a(&4))?;
-                    assert_eq!(r, (1, 2, 3, 4));
+                    let r = try_join!(channel.a(&100), channel.a(&200), channel.a(&300), channel.a(&400))?;
+                    assert_eq!(r, (100, 200, 300, 400));
                     Ok(())
                 },
             ),

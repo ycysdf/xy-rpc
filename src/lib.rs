@@ -18,36 +18,26 @@ pub mod formats;
 mod frame;
 mod handle_rpc;
 pub mod maybe_send;
+mod read_stream;
 
 pub use handle_rpc::*;
 
 pub use channel::*;
 
 use crate::formats::SerdeFormat;
-use crate::frame::{
-    RpcFrame, RpcFrameHead, RpcFrameHeadRpc, RpcMsgKind, RpcMsgSendId, RpcStreamKind, read_frame,
-    write_frame,
-};
+use crate::frame::{RpcFrame, RpcFrameHead, RpcMsgKind, read_frame, write_frame};
 use crate::maybe_send::{MaybeSend, MaybeSync};
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error, From};
-use flume::{Receiver, RecvError, Sender};
-use futures_channel::oneshot::Cancellation;
-use futures_util::stream::{BoxStream, FuturesUnordered, LocalBoxStream};
 use futures_util::{
     AsyncReadExt, AsyncWriteExt, FutureExt, Sink, SinkExt, Stream, StreamExt, TryStream,
     TryStreamExt,
 };
-use pin_project::{pin_project, pinned_drop};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll, ready};
-use tracing::{info, warn};
 pub use xy_rpc_macro::rpc_service;
 
 #[derive(Error, Debug)]
@@ -165,16 +155,6 @@ impl RpcMsgHandler<()> for RpcMsgHandlerWrapper<()> {
     }
 }
 
-// pub trait RpcMsgExclusiveHandler<Msg, Reply>: Send {
-//     fn handle(&mut self, msg: Msg) -> impl Future<Output = Reply> + MaybeSend;
-// }
-// impl<Msg, Reply> RpcMsgExclusiveHandler<Msg, Reply> for () {
-//     fn handle(&mut self, _: Msg) -> impl Future<Output = Reply> + MaybeSend {
-//         async move { unreachable!("no handler") }
-//     }
-// }
-
-// #[derive(Clone)]
 pub struct ChannelBuilder<SF, CS = (), MH = (), MSG = ()> {
     msg_handler: MH,
     serde_format: SF,
@@ -395,3 +375,5 @@ where
         self.0(channel)
     }
 }
+
+pub type EmptyStream = maybe_send::BoxedStreamMaybeLocal<'static, Result<(), RpcError>>;

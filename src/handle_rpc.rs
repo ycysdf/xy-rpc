@@ -1,7 +1,7 @@
 use crate::channel::InnerMsg;
 use crate::formats::SerdeFormat;
 use crate::maybe_send::MaybeSend;
-use crate::{BUF, RpcError, RpcOpId};
+use crate::{BUF, EmptyStream, RpcError, RpcOpId};
 use bytes::{BufMut, Bytes};
 use flume::Sender;
 use futures_util::{FutureExt, Stream, StreamExt};
@@ -11,6 +11,7 @@ use serde::de::DeserializeOwned;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
+use try_specialize::TrySpecialize;
 
 pub trait HandleRpc<
     SF: SerdeFormat,
@@ -72,7 +73,7 @@ where
                 .map_err(|_err| RpcError::RecvCallReplyCancelled)?;
             cancel_when_drop.forget_drop();
             let reply = serde_format
-                .deserialize_from_slice::<Reply>(msg.as_ref())
+                .deserialize_from_slice_optimized::<Reply>(&msg)
                 .map_err(RpcError::SerdeError)?;
             drop(cancel_when_drop);
             Ok(reply)
@@ -104,7 +105,7 @@ impl<
             &msg_sender,
             op_id,
             start_msg,
-            false,
+            true,
             OneOrMultiSender::Unary(reply_sender),
         );
 
@@ -140,7 +141,7 @@ impl<
                         .map_err(|_err| RpcError::RecvCallReplyCancelled)?;
                     cancel_when_drop.forget_drop();
                     let reply = serde_format
-                        .deserialize_from_slice::<Reply>(msg.as_ref())
+                        .deserialize_from_slice_optimized::<Reply>(&msg)
                         .map_err(RpcError::SerdeError)?;
                     drop(cancel_when_drop);
                     Ok(reply)
@@ -266,6 +267,42 @@ impl<
     }
 }
 
+// pub struct OnlyBytesMsg;
+//
+// impl<SF: SerdeFormat> HandleRpc<SF, (), (), EmptyStream> for OnlyBytesMsg {
+//     type Out = ();
+//
+//     fn handle(
+//         self,
+//         msg_sender: Sender<InnerMsg>,
+//         _serde_format: SF,
+//         op_id: RpcOpId,
+//         start_msg: Bytes,
+//         _stream: Option<EmptyStream>,
+//     ) -> impl Future<Output = Result<Self::Out, RpcError>> + MaybeSend + 'static {
+//         let (reply_sender, reply_receiver) = futures_channel::oneshot::channel();
+//         let result = rpc_call(
+//             &msg_sender,
+//             op_id,
+//             start_msg,
+//             false,
+//             OneOrMultiSender::Unary(reply_sender),
+//         );
+//         async move {
+//             result?;
+//             let mut cancel_when_drop = OnDrop::new(move || {
+//                 let _ = msg_sender.send(InnerMsg::Cancel(op_id));
+//             });
+//
+//             let _ = reply_receiver
+//                 .await
+//                 .map_err(|_err| RpcError::RecvCallReplyCancelled)?;
+//             cancel_when_drop.forget_drop();
+//             Ok(())
+//         }
+//     }
+// }
+
 #[pin_project]
 pub struct DeSerdeStream<S, SF, T> {
     #[pin]
@@ -286,7 +323,7 @@ where
             Some(bytes) => {
                 match me
                     .serde_format
-                    .deserialize_from_slice::<T>(bytes.as_ref())
+                    .deserialize_from_slice_optimized::<T>(&bytes)
                     .map_err(RpcError::SerdeError)
                 {
                     Ok(item) => Some(Ok(item)),
@@ -409,13 +446,6 @@ impl<S, SF, T, OI> SendRpcMsgAll<S, SF, T, OI> {
         }
     }
 }
-//
-// #[pinned_drop]
-// impl<S, SF, T, OI> PinnedDrop for SendRpcMsgAll<S, SF, T, OI> {
-//     fn drop(self: Pin<&mut Self>) {
-//         let _ = self.msg_sender.send(InnerMsg::Cancel(self.op_id));
-//     }
-// }
 
 impl<S, T: Serialize + 'static, SF: SerdeFormat, OI> Future for SendRpcMsgAll<S, SF, T, OI>
 where
@@ -448,14 +478,18 @@ where
             }
             Some(item) => {
                 let item = item?;
-                let msg = BUF
-                    .with_borrow_mut(|buf| {
-                        buf.clear();
-                        me.serde_format.serialize_to_writer(buf.writer(), &item)?;
-                        let payload = buf.split().freeze();
-                        Ok(payload)
-                    })
-                    .map_err(RpcError::SerdeError)?;
+                let msg: Bytes = match unsafe { item.try_specialize_static::<Bytes>() } {
+                    Ok(msg) => msg,
+                    Err(item) => BUF
+                        .with_borrow_mut(|buf| {
+                            buf.clear();
+                            me.serde_format
+                                .serialize_to_writer_optimized(buf.writer(), &item)?;
+                            let payload = buf.split().freeze();
+                            Ok(payload)
+                        })
+                        .map_err(RpcError::SerdeError)?,
+                };
                 me.msg_sender
                     .send(InnerMsg::CallStreaming {
                         op_id: me.op_id.clone(),

@@ -220,7 +220,6 @@ pub async fn read_frame(
     let mut bits = [0u8; 8];
     let r = read.read_exact(&mut bits[..]).await;
     // println!("r: {r:?}");
-    println!("bits: {bits:?}");
     if let Err(err) = r {
         if matches!(err.kind(), std::io::ErrorKind::UnexpectedEof) && bits.iter().all(|b| *b == 0) {
             None

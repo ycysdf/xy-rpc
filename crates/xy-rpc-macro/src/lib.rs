@@ -4,12 +4,13 @@ use proc_macro2::{Ident, Span};
 use quote::{format_ident, quote};
 use std::iter::once;
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{
     Field, FieldMutability, Fields, FieldsNamed, FnArg, GenericArgument, GenericParam, Generics,
     ItemStruct, ItemTrait, Lifetime, LifetimeParam, PatType, PathArguments, PathSegment,
-    ReturnType, Token, TraitItem, TraitItemFn, Type, TypeParamBound, TypeReference, Visibility,
-    parse_macro_input, parse_quote,
+    ReturnType, Token, TraitItem, TraitItemFn, Type, TypeParamBound, TypeReference, VisRestricted,
+    Visibility, parse_macro_input, parse_quote,
 };
 
 #[proc_macro_attribute]
@@ -33,6 +34,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
     let trait_ident = &ast.ident;
+    // let mod_ident = format_ident!("{}", ast.ident.to_string().to_case(Case::Snake));
     let variant_ident = format_ident!("{}Variant", ast.ident);
     // let msg_ref_enum_ident = format_ident!("{}RefMsg", ast.ident);
     // let msg_reply_enum_ident = format_ident!("{}ReplyMsg", ast.ident);
@@ -68,8 +70,8 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     .is_some_and(|s| s.3 == n.0)
             });
             let name = n.sig.ident.to_string().to_case(Case::UpperCamel);
-            let ident = format_ident!("{}", name);
-            let ref_ident = format_ident!("{}Ref", name);
+            let ident = format_ident!("{trait_ident}{name}");
+            let ref_ident = format_ident!("{trait_ident}{name}Ref");
 
             let (named_fields, named_ref_fields): (_, Punctuated<_, _>) = args
                 .filter_map(|n| match &n.1 {
@@ -80,7 +82,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     (
                         Field {
                             attrs: vec![],
-                            vis: Visibility::Inherited,
+                            vis: vis.clone(),
                             mutability: FieldMutability::None,
                             ident: match n.pat.as_ref() {
                                 syn::Pat::Ident(n) => Some(n.ident.clone()),
@@ -91,7 +93,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         },
                         Field {
                             attrs: vec![],
-                            vis: Visibility::Inherited,
+                            vis: vis.clone(),
                             mutability: FieldMutability::None,
                             ident: match n.pat.as_ref() {
                                 syn::Pat::Ident(n) => Some(n.ident.clone()),
@@ -230,14 +232,17 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                where_clause: None,
             };
          }
+         let is_async = rpc_call_fn.asyncness.is_some();
          match rpc_call_fn.output {
             ReturnType::Default => {
+               if !is_async {
+                  panic!("rpc fn return type must impl Future");
+               }
                rpc_call_fn = parse_quote! {
                   -> impl core::future::Future<Output = Result<(), xy_rpc::RpcError>> + xy_rpc::maybe_send::MaybeSend +'static
                };
             }
             ReturnType::Type(_, ty) => {
-               let is_async = rpc_call_fn.asyncness.is_some();
                let output_ty = get_future_output(!is_async, &*ty);
                if is_async {
                   rpc_call_fn.asyncness = None;
@@ -247,15 +252,16 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                };
             }
          };
-         let ident = format_ident!("{}", n.sig.ident.to_string().to_case(Case::UpperCamel));
-         let ref_ident = format_ident!("{}Ref", n.sig.ident.to_string().to_case(Case::UpperCamel));
+         let item_ident = format_ident!("{}",n.sig.ident.to_string().to_case(Case::UpperCamel));
+         let ident = format_ident!("{trait_ident}{item_ident}");
+         let ref_ident = format_ident!("{trait_ident}{item_ident}Ref");
          let fn_ident = &rpc_call_fn.ident;
          // let item_name = fn_ident.to_string().to_case(Case::UpperCamel);
          // let enum_item_ident = format_ident!("{}", item_name);
          // output_stream_item
          let msg_stream = match &stream_arg {
             None => quote!{
-               None::<xy_rpc::maybe_send::BoxedStreamMaybeLocal<'static,Result<(),xy_rpc::RpcError>>>
+               None::<xy_rpc::EmptyStream>
             },
             Some((pat,..)) => {
                let stream_arg = &pat.pat;
@@ -289,7 +295,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             let reply = xy_rpc::BUF
                                .with_borrow_mut(|buf| {
                                    buf.clear();
-                                   serde_format.serialize_to_writer(buf.writer(), &reply)
+                                   serde_format.serialize_to_writer_optimized(buf.writer(), &reply)
                                        .map(|_| buf.split().freeze())
                                        .map_err(xy_rpc::RpcError::SerdeError)
                                })?;
@@ -302,7 +308,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                                let reply = xy_rpc::BUF
                                   .with_borrow_mut(|buf| {
                                       buf.clear();
-                                      serde_format.serialize_to_writer::<_, #item_ty>(buf.writer(), &n)
+                                      serde_format.serialize_to_writer_optimized::<_, #item_ty>(buf.writer(), &n)
                                           .map(|_| buf.split().freeze())
                                           .map_err(xy_rpc::RpcError::SerdeError)
                                   })?;
@@ -314,8 +320,8 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                   None => quote! {
                      #id => {
                            let serde_format = serde_format.clone();
-                           let #ident { #fields } = serde_format.deserialize_from_slice(msg.msg.as_ref()).map_err(xy_rpc::RpcError::SerdeError)?;
-                           Ok(#variant_ident::#ident(async move {
+                           let #ident { #fields } = serde_format.deserialize_from_slice_optimized(&msg.msg).map_err(xy_rpc::RpcError::SerdeError)?;
+                           Ok(#variant_ident::#item_ident(async move {
                                let reply = self.service.#fn_ident(#fields).await;
                                #reply_handle
                            }))
@@ -327,8 +333,8 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                      quote! {
                         #id => {
                            let serde_format = serde_format.clone();
-                           let #ident { #fields } = serde_format.deserialize_from_slice(msg.msg.as_ref()).map_err(xy_rpc::RpcError::SerdeError)?;
-                           Ok(#variant_ident::#ident(async move {
+                           let #ident { #fields } = serde_format.deserialize_from_slice_optimized(&msg.msg).map_err(xy_rpc::RpcError::SerdeError)?;
+                           Ok(#variant_ident::#item_ident(async move {
                                let reply = self.service.#fn_ident(#fields #d TransStream::new(
                                  #stream_arg.unwrap().into_stream(),
                                  serde_format.clone(),
@@ -357,7 +363,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
         where
             T: #trait_ident,
         {
-            fn handle(&self, msg: xy_rpc::RpcRawMsg, stream: Option<xy_rpc::flume::Receiver<bytes::Bytes>>, serde_format: &impl SerdeFormat) -> Result<impl core::future::Future<Output=Result<xy_rpc::HandleReply,xy_rpc::RpcError>> + xy_rpc::maybe_send::MaybeSend,xy_rpc::RpcError> {
+            fn handle(&self, msg: xy_rpc::RpcRawMsg, stream: Option<xy_rpc::flume::Receiver<bytes::Bytes>>, serde_format: &impl xy_rpc::formats::SerdeFormat) -> Result<impl core::future::Future<Output=Result<xy_rpc::HandleReply,xy_rpc::RpcError>> + xy_rpc::maybe_send::MaybeSend,xy_rpc::RpcError> {
                use bytes::BufMut;
                  match msg.msg_kind {
                      #(#handle_impl)*

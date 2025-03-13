@@ -1,4 +1,4 @@
-use crate::formats::SerdeFormat;
+use crate::formats::{SerdeFormat};
 use crate::frame::{
     RpcFrame, RpcFrameHead, RpcFrameHeadRpc, RpcMsgKind, RpcMsgSendId, RpcStreamKind,
 };
@@ -23,6 +23,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tracing::{info, warn};
+use try_specialize::TrySpecialize;
 
 #[derive(Clone, Hash, Eq, PartialEq, Debug, Copy, Display)]
 #[display("{self:?}")]
@@ -171,7 +172,6 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
                                    if !head.reply() {
                                        match head.stream() {
                                            RpcStreamKind::None|RpcStreamKind::StreamStart => {
-                                             println!("payload len {}",frame.payload.len());
                                              let (stream_sender,stream_receiver) = (head.stream() == RpcStreamKind::StreamStart).then_some(flume::unbounded()).unzip();
                                              match msg_handler.handle(RpcRawMsg { msg: frame.payload.clone(),msg_kind:head.msg_kind(),},stream_receiver,&serde_format) {
                                                  Ok(fut) => {
@@ -414,17 +414,24 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
             msg_kind,
             msg_id: send_id,
         };
-        let msg = match BUF
-            .with_borrow_mut(|buf| {
-                buf.clear();
-                self.serde_format.serialize_to_writer(buf.writer(), msg)?;
-                let payload = buf.split().freeze();
-                Ok(payload)
-            })
-            .map_err(RpcError::SerdeError)
+        let msg = if let Some(raw_bytes) =
+            unsafe { msg.try_specialize_ref_ignore_lifetimes::<Bytes>() }
         {
-            Ok(msg) => msg,
-            Err(err) => return futures_util::future::ready(Err(err)).left_future(),
+            raw_bytes.clone()
+        } else {
+            match BUF
+                .with_borrow_mut(|buf| {
+                    buf.clear();
+                    self.serde_format
+                        .serialize_to_writer_optimized(buf.writer(), msg)?;
+                    let payload = buf.split().freeze();
+                    Ok(payload)
+                })
+                .map_err(RpcError::SerdeError)
+            {
+                Ok(msg) => msg,
+                Err(err) => return futures_util::future::ready(Err(err)).left_future(),
+            }
         };
         handle_rpc
             .handle(
@@ -504,7 +511,10 @@ impl<T: DeserializeOwned + 'static, SF: SerdeFormat> Stream for TransStream<T, S
         let poll = me.bytes_stream.poll_next(cx);
         match poll {
             Poll::Ready(Some(bytes)) => {
-                match me.serde_format.deserialize_from_slice::<T>(bytes.as_ref()) {
+                match me
+                    .serde_format
+                    .deserialize_from_slice_optimized::<T>(&bytes)
+                {
                     Ok(n) => Poll::Ready(Some(Ok(n))),
                     Err(err) => Poll::Ready(Some(Err(RpcError::SerdeError(err)))),
                 }
