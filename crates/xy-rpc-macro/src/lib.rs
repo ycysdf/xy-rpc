@@ -6,10 +6,10 @@ use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-   parse_macro_input, parse_quote, Field, FieldMutability, Fields, FieldsNamed, FnArg, GenericArgument,
-   GenericParam, Generics, ItemStruct, ItemTrait, Lifetime, LifetimeParam, PatType,
-   PathArguments, PathSegment, ReturnType, Token, TraitItem, TraitItemFn, Type
-   , TypeParamBound, TypeReference,
+    Field, FieldMutability, Fields, FieldsNamed, FnArg, GenericArgument, GenericParam, Generics,
+    ItemStruct, ItemTrait, Lifetime, LifetimeParam, PatType, PathArguments, PathSegment,
+    ReturnType, Token, TraitItem, TraitItemFn, Type, TypeParamBound, TypeReference,
+    parse_macro_input, parse_quote,
 };
 
 #[proc_macro_attribute]
@@ -19,16 +19,23 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
     {
         for item in ast.items.iter_mut() {
             if let TraitItem::Fn(f) = item {
-                if let Some(_r) = f.sig.asyncness.take() {
-                    f.sig.output = match &f.sig.output {
-                        ReturnType::Default => parse_quote! {
-                            -> impl core::future::Future<Output = ()> + xy_rpc::maybe_send::MaybeSend
-                        },
-                        ReturnType::Type(_, ty) => parse_quote! {
-                            -> impl core::future::Future<Output = #ty> + xy_rpc::maybe_send::MaybeSend
-                        },
-                    };
-                }
+                let is_async = f.sig.asyncness.take().is_some();
+                f.sig.output = match &f.sig.output {
+                    ReturnType::Default => {
+                        if !is_async {
+                            panic!("rpc fn return type must impl Future");
+                        }
+                        parse_quote! {
+                           -> impl core::future::Future<Output = ()> + xy_rpc::maybe_send::MaybeSend
+                        }
+                    }
+                    ReturnType::Type(_, ty) => {
+                        let output_ty = get_future_output(!is_async, &*ty);
+                        parse_quote! {
+                           -> impl core::future::Future<Output = #output_ty> + xy_rpc::maybe_send::MaybeSend
+                        }
+                    }
+                };
             }
         }
     }
@@ -232,23 +239,24 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
             };
          }
          let is_async = rpc_call_fn.asyncness.is_some();
-         match rpc_call_fn.output {
+         rpc_call_fn.output = match rpc_call_fn.output {
             ReturnType::Default => {
                if !is_async {
                   panic!("rpc fn return type must impl Future");
                }
-               rpc_call_fn = parse_quote! {
+               rpc_call_fn.asyncness = None;
+               parse_quote! {
                   -> impl core::future::Future<Output = Result<(), xy_rpc::RpcError>> + xy_rpc::maybe_send::MaybeSend +'static
-               };
+               }
             }
             ReturnType::Type(_, ty) => {
                let output_ty = get_future_output(!is_async, &*ty);
                if is_async {
                   rpc_call_fn.asyncness = None;
                }
-               rpc_call_fn.output = parse_quote! {
+               parse_quote! {
                   -> impl core::future::Future<Output = Result<#output_ty, xy_rpc::RpcError>> + xy_rpc::maybe_send::MaybeSend +'static
-               };
+               }
             }
          };
          let item_ident = format_ident!("{}",n.sig.ident.to_string().to_case(Case::UpperCamel));
@@ -348,7 +356,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let schema = quote! {
         #[derive(Clone, Debug, Default)]
         #vis struct #schema_ident;
-        impl xy_rpc::RpcServiceSchema for #schema_ident
+        impl xy_rpc::RpcSchema for #schema_ident
         {
         }
     };
@@ -358,8 +366,8 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
         where
             T: #trait_ident,
         {
-            fn handle(&self, msg: xy_rpc::RpcRawMsg, stream: Option<xy_rpc::flume::Receiver<bytes::Bytes>>, serde_format: &impl xy_rpc::formats::SerdeFormat) -> Result<impl core::future::Future<Output=Result<xy_rpc::HandleReply,xy_rpc::RpcError>> + xy_rpc::maybe_send::MaybeSend,xy_rpc::RpcError> {
-               use bytes::BufMut;
+            fn handle(&self, msg: xy_rpc::RpcRawMsg, stream: Option<xy_rpc::flume::Receiver<xy_rpc::bytes::Bytes>>, serde_format: &impl xy_rpc::formats::SerdeFormat) -> Result<impl core::future::Future<Output=Result<xy_rpc::HandleReply,xy_rpc::RpcError>> + xy_rpc::maybe_send::MaybeSend,xy_rpc::RpcError> {
+               use xy_rpc::bytes::BufMut;
                  match msg.msg_kind {
                      #(#handle_impl)*
                      _ => Err(xy_rpc::RpcError::InvalidMsgKind)

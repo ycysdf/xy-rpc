@@ -1,7 +1,7 @@
 use crate::formats::SerdeFormat;
 use crate::maybe_send::MaybeSend;
 use crate::{
-    ChannelBuilder, RpcError, RpcMsgHandler, RpcMsgHandlerWrapper, RpcServiceSchema, XyRpcChannel,
+    ChannelBuilder, RpcError, RpcMsgHandler, RpcMsgHandlerWrapper, RpcSchema, XyRpcChannel,
 };
 use futures_util::future::Either;
 
@@ -11,8 +11,8 @@ pub async fn serve_duplex_from<
     T2: 'static,
     O1: MaybeSend + 'static,
     O2: MaybeSend + 'static,
-    CS1: RpcServiceSchema + MaybeSend + 'static,
-    CS2: RpcServiceSchema + MaybeSend + 'static,
+    CS1: RpcSchema + MaybeSend + 'static,
+    CS2: RpcSchema + MaybeSend + 'static,
     F1: Future<Output = Result<O1, RpcError>> + MaybeSend + 'static,
     F2: Future<Output = Result<O2, RpcError>> + MaybeSend + 'static,
 >(

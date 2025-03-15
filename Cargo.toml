@@ -29,7 +29,6 @@ stream = []
 [dependencies]
 futures-util = { version = "0.3", features = ["sink", "io", "futures-macro", "async-await-macro"], default-features = false }
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["std"], default-features = false, optional = true }
 flume = { version = "0.11", features = ["async"], default-features = false }
 futures-channel = { version = "0.3", features = ["alloc"], default-features = false }
 auto_enums = "0.8"
@@ -43,13 +42,15 @@ pin-project = "1"
 compio = { version = "0.13", optional = true, features = ["io-compat"] }
 try-specialize = { version = "0.1" }
 hashbrown = { version = "0.15" }
+modular-bitfield = { version = "0.11", features = [] }
+
+serde_json = { version = "1", features = ["std"], default-features = false, optional = true }
 tokio = { version = "1", features = ["net", "io-util"], default-features = false, optional = true }
 tokio-util = { version = "0.7", features = ["compat"], default-features = false, optional = true }
 axum = { version = "0.8", features = [], default-features = false, optional = true }
 dashmap = { version = "6.1", optional = true }
 rmp-serde = { version = "1.3", optional = true }
 #erased-serde = "0.4"
-modular-bitfield = { version = "0.11", features = [] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ts-rs = "10"

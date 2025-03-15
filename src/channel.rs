@@ -5,7 +5,7 @@ use crate::frame::{
 use crate::handle_rpc::{HandleRpc, OneOrMultiSender};
 use crate::maybe_send::{AnyError, MaybeSend};
 use crate::{
-    HandleReply, RpcMsgHandler, RpcRawMsg, RpcServiceSchema, RpcTransportSink, RpcTransportStream,
+    HandleReply, RpcMsgHandler, RpcRawMsg, RpcSchema, RpcTransportSink, RpcTransportStream,
     ServiceFactory, maybe_send, temp_buf,
 };
 use alloc::string::String;
@@ -90,13 +90,13 @@ pub enum InnerMsg {
 //     reply_sender: futures_channel::oneshot::Sender<RpcMsgItem>,
 // }
 
-pub struct XyRpcChannel<SF, CS: RpcServiceSchema = ()> {
+pub struct XyRpcChannel<SF, CS: RpcSchema = ()> {
     sender_id_atomic: Arc<portable_atomic::AtomicU16>,
     msg_sender: flume::Sender<InnerMsg>,
     serde_format: SF,
     _marker: PhantomData<CS>,
 }
-impl<SF, CS: RpcServiceSchema> Clone for XyRpcChannel<SF, CS>
+impl<SF, CS: RpcSchema> Clone for XyRpcChannel<SF, CS>
 where
     SF: SerdeFormat,
 {
@@ -110,7 +110,7 @@ where
     }
 }
 
-impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
+impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
     pub fn new(
         mut transport_sink: impl RpcTransportSink + Unpin,
         mut transport_stream: impl RpcTransportStream + Unpin,
@@ -133,15 +133,7 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
         let msg_handler = msg_handler.create(channel.clone());
 
         (channel, async move {
-            enum CallVariant {
-                ReplyOnce {
-                    reply_sender: futures_channel::oneshot::Sender<Bytes>,
-                },
-                ReplyMulti {
-                    reply_item_sender: flume::Sender<Bytes>,
-                },
-            }
-            let mut calls: HashMap<RpcOpId, CallVariant> = HashMap::default();
+            let mut calls: HashMap<RpcOpId, OneOrMultiSender> = HashMap::default();
             let mut call_msg_stream_item_sender: HashMap<RpcOpId, flume::Sender<Bytes>> =
                 HashMap::default();
 
@@ -175,7 +167,7 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
                                        match head.stream() {
                                            RpcStreamKind::None|RpcStreamKind::StreamStart => {
                                              let (stream_sender,stream_receiver) = (head.stream() == RpcStreamKind::StreamStart).then_some(flume::unbounded()).unzip();
-                                             match msg_handler.handle(RpcRawMsg { msg: frame.payload.clone(),msg_kind:head.msg_kind(),},stream_receiver,&serde_format) {
+                                             match msg_handler.handle(RpcRawMsg { msg: frame.payload,msg_kind:head.msg_kind(),},stream_receiver,&serde_format) {
                                                  Ok(fut) => {
                                                      if let Some(stream_sender) = stream_sender {
                                                          call_msg_stream_item_sender.insert(op_id, stream_sender);
@@ -209,9 +201,7 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
                                                    warn!(?op_id,"unexpected reply frame.");
                                                    continue;
                                                };
-                                               let CallVariant::ReplyOnce{
-                                                   reply_sender
-                                               } = call_variant else {
+                                               let OneOrMultiSender::Unary(reply_sender) = call_variant else {
                                                    warn!(?op_id,"unexpected call.");
                                                    continue;
                                                };
@@ -224,9 +214,7 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
                                                    warn!(?op_id,"unexpected reply frame.");
                                                    continue;
                                                };
-                                               let CallVariant::ReplyMulti {
-                                                   reply_item_sender
-                                               } = &call_variant else {
+                                               let OneOrMultiSender::Streaming(reply_item_sender) = &call_variant else {
                                                    warn!(?op_id,"unexpected call.");
                                                    continue;
                                                };
@@ -317,18 +305,7 @@ impl<SF: SerdeFormat, CS: RpcServiceSchema> XyRpcChannel<SF, CS> {
                                            transport_sink
                                                .send(frame)
                                                .await.map_err(|n| n.into())?;
-                                           match reply_sender {
-                                             OneOrMultiSender::Unary(reply_sender) => {
-                                               calls.insert(op_id, CallVariant::ReplyOnce {
-                                                   reply_sender
-                                               });
-                                             }
-                                             OneOrMultiSender::Streaming(reply_item_sender) => {
-                                               calls.insert(op_id, CallVariant::ReplyMulti {
-                                                   reply_item_sender
-                                               });
-                                             }
-                                          }
+                                            calls.insert(op_id, reply_sender);
                                       }
                                      InnerMsg::CallStreaming{op_id,item} => {
                                            if let Some(payload) = item {

@@ -164,10 +164,7 @@ impl<
     MsgStream: Stream<Item = Result<MsgItem, RpcError>> + MaybeSend + 'static,
 > HandleRpc<SF, MsgItem, Reply, MsgStream> for ReplyStreaming
 {
-    type Out = StreamWithFut<
-        DeSerdeStream<flume::r#async::RecvStream<'static, Bytes>, SF, Reply>,
-        core::future::Pending<Result<Reply, RpcError>>,
-    >;
+    type Out = DeSerdeStream<flume::r#async::RecvStream<'static, Bytes>, SF, Reply>;
 
     fn handle(
         self,
@@ -189,13 +186,10 @@ impl<
 
         async move {
             result?;
-            Ok(StreamWithFut {
-                stream: DeSerdeStream {
-                    stream: reply_receiver.into_stream(),
-                    serde_format,
-                    _marker: Default::default(),
-                },
-                future: core::future::pending(),
+            Ok(DeSerdeStream {
+                stream: reply_receiver.into_stream(),
+                serde_format,
+                _marker: Default::default(),
             })
         }
     }
@@ -256,14 +250,14 @@ impl<
 
         async move {
             result?;
-            Ok(StreamWithFut {
-                stream: DeSerdeStream {
+            Ok(StreamWithFut::new(
+                DeSerdeStream {
                     stream: reply_receiver.into_stream(),
                     serde_format,
                     _marker: Default::default(),
                 },
-                future: send_all,
-            })
+                send_all,
+            ))
         }
     }
 }
@@ -339,9 +333,20 @@ where
 #[pin_project]
 pub struct StreamWithFut<S, F> {
     #[pin]
-    stream: S,
+    pub stream: S,
     #[pin]
-    future: F,
+    pub future: F,
+    pub prev_poll_fut: bool,
+}
+
+impl<S, F> StreamWithFut<S, F> {
+    pub fn new(stream: S, future: F) -> Self {
+        Self {
+            stream,
+            future,
+            prev_poll_fut: true,
+        }
+    }
 }
 
 impl<S: Stream, F: Future<Output = S::Item>> Stream for StreamWithFut<S, F> {
@@ -349,11 +354,21 @@ impl<S: Stream, F: Future<Output = S::Item>> Stream for StreamWithFut<S, F> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let me = self.project();
-        let _poll = me.future.poll(cx);
-        if _poll.is_ready() {
-            return _poll.map(|n| Some(n));
+        let prev_poll_fut = *me.prev_poll_fut;
+        *me.prev_poll_fut = !prev_poll_fut;
+        if !prev_poll_fut {
+            let _poll = me.future.poll(cx);
+            if _poll.is_ready() {
+                return _poll.map(|n| Some(n));
+            }
+            me.stream.poll_next(cx)
+        } else {
+            let _poll = me.stream.poll_next(cx);
+            if _poll.is_ready() {
+                return _poll;
+            }
+            me.future.poll(cx).map(|n| Some(n))
         }
-        me.stream.poll_next(cx)
     }
 }
 

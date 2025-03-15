@@ -1,4 +1,4 @@
-use crate::{ChannelBuilder, RpcError, RpcMsgHandler, RpcServiceSchema, XyRpcChannel};
+use crate::{ChannelBuilder, RpcError, RpcMsgHandler, RpcSchema, XyRpcChannel};
 use futures_util::SinkExt;
 use gloo_net::Error;
 use js_sys::Uint8Array;
@@ -57,7 +57,7 @@ pub async fn get_http_stream_from_url(
 }
 
 pub trait ChannelBuilderWebExt<SF, CS, MH, MSG> {
-    fn build_from_web_stream<S: RpcServiceSchema, H: RpcMsgHandler<S> + 'static>(
+    fn build_from_web_stream<S: RpcSchema, H: RpcMsgHandler<S> + 'static>(
         self,
         readable_stream: ReadableStream,
         writable_stream: WritableStream,
@@ -67,11 +67,11 @@ pub trait ChannelBuilderWebExt<SF, CS, MH, MSG> {
     )
     where
         XyRpcChannel<SF, CS>: Clone,
-        CS: RpcServiceSchema,
+        CS: RpcSchema,
         MH: FnOnce(XyRpcChannel<SF, CS>) -> H;
 }
 impl<SF, CS, MH, MSG> ChannelBuilderWebExt<SF, CS, MH, MSG> for ChannelBuilder<SF, CS, MH, MSG> {
-    fn build_from_web_stream<S: RpcServiceSchema, H: RpcMsgHandler<S> + 'static>(
+    fn build_from_web_stream<S: RpcSchema, H: RpcMsgHandler<S> + 'static>(
         self,
         readable_stream: ReadableStream,
         writable_stream: WritableStream,
@@ -81,7 +81,7 @@ impl<SF, CS, MH, MSG> ChannelBuilderWebExt<SF, CS, MH, MSG> for ChannelBuilder<S
     )
     where
         XyRpcChannel<SF, CS>: Clone,
-        CS: RpcServiceSchema,
+        CS: RpcSchema,
         MH: FnOnce(XyRpcChannel<SF, CS>) -> H,
     {
         let read = wasm_streams::ReadableStream::from_raw(readable_stream).into_async_read();

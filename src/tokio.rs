@@ -1,12 +1,13 @@
 use crate::formats::SerdeFormat;
-use crate::frame::RpcFrameHeadBits;
+use crate::frame::{RpcFrameHead, RpcFrameHeadBits};
 use crate::maybe_send::MaybeSend;
 use crate::{
-    ChannelBuilder, RpcError, RpcFrameHead, RpcMsgHandler, RpcMsgHandlerWrapper, RpcServiceSchema,
+    ChannelBuilder, RpcError, RpcMsgHandler, RpcMsgHandlerWrapper, RpcSchema,
     ServiceFactory, XyRpcChannel, new_transport_sink, new_transport_stream,
 };
-use futures_util::future::Either;
+use alloc::format;
 use core::future::Future;
+use futures_util::future::Either;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -20,7 +21,7 @@ pub trait ChannelBuilderTokioExt<SF, CS, MH, MSG> {
     )
     where
         XyRpcChannel<SF, CS>: Clone,
-        CS: RpcServiceSchema,
+        CS: RpcSchema,
         MH: ServiceFactory<SF, CS>;
     fn build_from_tokio_read_write(
         self,
@@ -34,7 +35,7 @@ pub trait ChannelBuilderTokioExt<SF, CS, MH, MSG> {
     )
     where
         XyRpcChannel<SF, CS>: Clone,
-        CS: RpcServiceSchema,
+        CS: RpcSchema,
         MH: ServiceFactory<SF, CS>;
 }
 impl<SF, CS, MH, MSG> ChannelBuilderTokioExt<SF, CS, MH, MSG> for ChannelBuilder<SF, CS, MH, MSG>
@@ -50,7 +51,7 @@ where
     )
     where
         XyRpcChannel<SF, CS>: Clone,
-        CS: RpcServiceSchema,
+        CS: RpcSchema,
         MH: ServiceFactory<SF, CS>,
     {
         self.build_from_tokio_read_write(tokio::io::split(io))
@@ -67,7 +68,7 @@ where
     )
     where
         XyRpcChannel<SF, CS>: Clone,
-        CS: RpcServiceSchema,
+        CS: RpcSchema,
         MH: ServiceFactory<SF, CS>,
     {
         let stream = new_transport_stream(read.compat());
@@ -98,8 +99,8 @@ pub async fn serve_duplex_tokio<
     T2: 'static,
     O1: MaybeSend + 'static,
     O2: MaybeSend + 'static,
-    CS1: RpcServiceSchema + MaybeSend + 'static,
-    CS2: RpcServiceSchema + MaybeSend + 'static,
+    CS1: RpcSchema + MaybeSend + 'static,
+    CS2: RpcSchema + MaybeSend + 'static,
     F1: Future<Output = Result<O1, RpcError>> + MaybeSend + 'static,
     F2: Future<Output = Result<O2, RpcError>> + MaybeSend + 'static,
 >(
@@ -133,8 +134,8 @@ pub async fn serve_duplex_from_tokio<
     T2: 'static,
     O1: MaybeSend + 'static,
     O2: MaybeSend + 'static,
-    CS1: RpcServiceSchema + MaybeSend + 'static,
-    CS2: RpcServiceSchema + MaybeSend + 'static,
+    CS1: RpcSchema + MaybeSend + 'static,
+    CS2: RpcSchema + MaybeSend + 'static,
     F1: Future<Output = Result<O1, RpcError>> + MaybeSend + 'static,
     F2: Future<Output = Result<O2, RpcError>> + MaybeSend + 'static,
 >(

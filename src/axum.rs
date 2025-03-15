@@ -1,6 +1,6 @@
 use crate::formats::SerdeFormat;
 use crate::tokio::ChannelBuilderTokioExt;
-use crate::{ChannelBuilder, RpcMsgHandler, RpcMsgHandlerWrapper, RpcServiceSchema, XyRpcChannel};
+use crate::{ChannelBuilder, RpcMsgHandler, RpcMsgHandlerWrapper, RpcSchema, XyRpcChannel};
 use axum::body::Body;
 use axum::extract::Request;
 use axum::http::{HeaderValue, StatusCode};
@@ -21,7 +21,7 @@ struct StreamInfo {
 
 pub struct XyWebRpcService<SF, F, CS, S, T>
 where
-    CS: RpcServiceSchema,
+    CS: RpcSchema,
 {
     serde_format: SF,
     streams: Arc<dashmap::DashMap<Uuid, StreamInfo>>,
@@ -32,7 +32,7 @@ where
 impl<SF, F, CS, S, T> Clone for XyWebRpcService<SF, F, CS, S, T>
 where
     SF: SerdeFormat,
-    CS: RpcServiceSchema,
+    CS: RpcSchema,
 {
     fn clone(&self) -> Self {
         Self {
@@ -49,8 +49,8 @@ impl<SF, F, CS, S, T> XyWebRpcService<SF, F, CS, S, T>
 where
     SF: SerdeFormat,
     F: for<'a> Fn(&'a mut Request, XyRpcChannel<SF,CS>) -> T,
-    CS: RpcServiceSchema,
-    S: RpcServiceSchema,
+    CS: RpcSchema,
+    S: RpcSchema,
     RpcMsgHandlerWrapper<T>: RpcMsgHandler<S>,
 {
     pub fn new(f: F, serde_format: SF) -> (Self, flume::Receiver<(Request, XyRpcChannel<SF,CS>)>) {
@@ -76,8 +76,8 @@ where
     SF: SerdeFormat,
     T: 'static,
     F: for<'a> Fn(&'a mut Request, XyRpcChannel<SF,CS>) -> T,
-    CS: RpcServiceSchema,
-    S: RpcServiceSchema,
+    CS: RpcSchema,
+    S: RpcSchema,
     RpcMsgHandlerWrapper<T>: RpcMsgHandler<S>,
 {
     type Response = Response;
