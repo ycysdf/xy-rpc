@@ -3,13 +3,21 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
-pub use bytes;
 pub use auto_enums::enum_derive;
+pub use bytes;
 pub use flume;
 #[cfg(feature = "rt_tokio_without_send_sync")]
 pub mod tokio;
 
 pub use xy_rpc_macro as macros;
+
+#[cfg(target_arch = "wasm32")]
+mod web;
+#[cfg(target_arch = "wasm32")]
+pub use web::*;
+
+#[cfg(feature = "axum")]
+pub mod axum;
 
 mod channel;
 mod channel_builder;
@@ -19,12 +27,13 @@ pub mod compio;
 pub mod duplex;
 pub mod formats;
 mod frame;
+mod future_stream_with_sender;
 mod handle_rpc;
 pub mod maybe_send;
 pub mod read_stream;
 pub mod temp_buf;
 mod transport;
-mod future_stream_with_sender;
+
 pub use future_stream_with_sender::*;
 
 pub use channel_builder::*;

@@ -2,8 +2,8 @@ use crate::formats::SerdeFormat;
 use crate::frame::{RpcFrameHead, RpcFrameHeadBits};
 use crate::maybe_send::MaybeSend;
 use crate::{
-    ChannelBuilder, RpcError, RpcMsgHandler, RpcMsgHandlerWrapper, RpcSchema,
-    ServiceFactory, XyRpcChannel, new_transport_sink, new_transport_stream,
+    ChannelBuilder, RpcError, RpcMsgHandler, RpcMsgHandlerWrapper, RpcSchema, ServiceFactory,
+    XyRpcChannel, new_transport_sink, new_transport_stream,
 };
 use alloc::format;
 use core::future::Future;
@@ -118,7 +118,7 @@ where
     RpcMsgHandlerWrapper<T1>: RpcMsgHandler<CS1>,
     RpcMsgHandlerWrapper<T2>: RpcMsgHandler<CS2>,
 {
-    let (duplex1, duplex2) = tokio::io::duplex(1024 * 8);
+    let (duplex1, duplex2) = tokio::io::duplex(usize::MAX);
     serve_duplex_from_tokio(
         (tokio::io::split(duplex1), tokio::io::split(duplex2)),
         serde_format,
@@ -163,13 +163,13 @@ where
     RpcMsgHandlerWrapper<T1>: RpcMsgHandler<CS1>,
     RpcMsgHandlerWrapper<T2>: RpcMsgHandler<CS2>,
 {
-    let json_channel_builder = ChannelBuilder::new(serde_format);
+    let channel_builder = ChannelBuilder::new(serde_format);
 
-    let (channel, serve_future_1) = json_channel_builder
+    let (channel, serve_future_1) = channel_builder
         .clone()
         .call_and_serve(serve1)
         .build_from_tokio_read_write(duplex1);
-    let (channel2, serve_future_2) = json_channel_builder
+    let (channel2, serve_future_2) = channel_builder
         .call_and_serve(serve2)
         .build_from_tokio_read_write(duplex2);
 

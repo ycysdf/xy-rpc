@@ -1,5 +1,8 @@
 [workspace]
-members = ["crates/xy-rpc-macro"]
+members = [
+    "crates/xy-rpc-macro",
+    "examples/wasm_play"
+]
 
 [package]
 name = "xy-rpc"
@@ -24,6 +27,7 @@ format_message_pack = ["dep:rmp-serde"]
 duplex = ["rt_tokio_without_send_sync"]
 send_sync = []
 stream = []
+tracing_live = ["dep:tracing-lv-track"]
 
 
 [dependencies]
@@ -50,11 +54,12 @@ tokio-util = { version = "0.7", features = ["compat"], default-features = false,
 axum = { version = "0.8", features = [], default-features = false, optional = true }
 dashmap = { version = "6.1", optional = true }
 rmp-serde = { version = "1.3", optional = true }
+tracing-lv-track = { path = "../tracing-live/libs/track", optional = true }
 #erased-serde = "0.4"
+uuid = { version = "1", features = ["v4","js"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ts-rs = "10"
-uuid = { version = "1", features = ["v4"] }
 tower = "0.5"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -72,10 +77,10 @@ axum = { version = "0.8", features = [] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio-util = { version = "0.7", features = ["io"], default-features = false }
 tokio = { version = "1", features = ["full"] }
-xy-rpc = { path = ".", features = ["rt_tokio_without_send_sync", "axum", "format_json", "format_message_pack", "duplex"] }
+xy-rpc = { path = ".", features = ["rt_tokio_without_send_sync", "axum", "format_json", "format_message_pack", "duplex", "tracing_live"] }
 #tracing-lv = { path = "../tracing-live/libs/client" }
-#tower-http = { version = "0.6", features = ["cors"] }
-compio = { version = "0.13", features = ["macros"] }
+tower-http = { version = "0.6", features = ["cors"] }
+compio = { version = "0.13", features = ["macros", "time"] }
 bincode = { version = "1.3", features = [] }
 
 
@@ -105,3 +110,8 @@ required-features = ["rt_tokio"]
 name = "compio_example"
 path = "examples/compio_example.rs"
 required-features = ["rt_compio"]
+
+[[example]]
+name = "axum"
+path = "examples/axum_example.rs"
+required-features = ["rt_tokio", "send_sync"]

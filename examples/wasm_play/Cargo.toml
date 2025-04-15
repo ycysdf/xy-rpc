@@ -17,4 +17,5 @@ pin-project = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["std"], default-features = false }
 bytes = "1"
-xy-rpc = { path = "../../" }
+xy-rpc = { path = "../../", features = ["format_json"] }
+futures-util = { version = "0.3", features = ["sink", "io", "futures-macro", "async-await-macro"], default-features = false }

@@ -105,7 +105,7 @@ impl SerdeFormat for JsonFormat {
 }
 
 #[cfg(feature = "format_message_pack")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MessagePackFormat;
 
 #[cfg(feature = "format_message_pack")]
@@ -114,7 +114,7 @@ impl SerdeFormat for MessagePackFormat {
     where
         T: ?Sized + Serialize,
     {
-        Ok(rmp_serde::encode::write(&mut writer.writer(), value).map_err(|err| Box::new(err))?)
+        rmp_serde::encode::write(&mut writer.writer(), value).map_err(|err| Box::new(err) as _)
     }
 
     // fn serialize_to_vec<T>(value: &T) -> Result<Vec<u8>,Box<dyn Error+MaybeSend>
@@ -128,7 +128,7 @@ impl SerdeFormat for MessagePackFormat {
     where
         T: Deserialize<'a>,
     {
-        Ok(rmp_serde::from_slice(v).map_err(|err| Box::new(err))?)
+        rmp_serde::from_slice(v).map_err(|err| Box::new(err) as _)
     }
 
     // fn deserialize_from_reader<R, T>(&self, reader: R) -> Result<T,Box<dyn Error+MaybeSend>

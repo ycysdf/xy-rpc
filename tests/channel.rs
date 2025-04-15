@@ -5,33 +5,73 @@ use core::net::{IpAddr, Ipv4Addr, SocketAddr};
 use futures_util::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::Duration;
+use tokio::task::yield_now;
+use tracing::{Instrument, info, info_span, warn};
+use tracing_subscriber::filter::FilterExt;
+use tracing_subscriber::fmt::format::FmtSpan;
 use xy_rpc::TransStream;
 use xy_rpc::duplex::serve_duplex_from;
 use xy_rpc::formats::{JsonFormat, MessagePackFormat, SerdeFormat};
-use xy_rpc::maybe_send::MaybeSend;
-use xy_rpc::tokio::serve_duplex_tokio;
+use xy_rpc::maybe_send::{MaybeSend, MaybeSync};
+use xy_rpc::tokio::{serve_duplex_from_tokio, serve_duplex_tokio};
 use xy_rpc::{RpcError, XyRpcChannel};
 use xy_rpc_macro::rpc_service;
 
 #[cfg(feature = "rt_tokio")]
 #[tokio::test]
-async fn test_single_thread() {
+async fn tokio_single_thread() {
     test_all_format(RunAsyncWay::Tokio).await;
+}
+
+#[cfg(feature = "rt_tokio")]
+#[tokio::test]
+async fn tokio_single_thread_futures() {
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_target(false)
+        .with_timer(tracing_subscriber::fmt::time::uptime())
+        .with_level(true)
+        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+        .init();
     test_all_format(RunAsyncWay::Futures).await;
 }
 
 #[cfg(feature = "rt_tokio")]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_multi_thread() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+async fn tokio_multi_thread() {
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_target(false)
+        .with_timer(tracing_subscriber::fmt::time::uptime())
+        .with_level(true)
+        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+        .init();
     test_all_format(RunAsyncWay::Tokio).await;
+}
+
+#[cfg(feature = "rt_tokio")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+async fn tokio_multi_thread_features() {
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_target(false)
+        .with_timer(tracing_subscriber::fmt::time::uptime())
+        .with_level(true)
+        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+        .init();
     test_all_format(RunAsyncWay::Futures).await;
 }
 
 #[cfg(feature = "rt_compio")]
 #[compio::test]
-async fn test_compio() {
-    // BUG?
-    // test_all_format(RunAsyncWay::Compio).await;
+async fn compio() {
+    test_all_format(RunAsyncWay::Compio).await;
+}
+
+#[cfg(feature = "rt_compio")]
+#[compio::test]
+async fn compio_futures() {
     test_all_format(RunAsyncWay::Futures).await;
 }
 
@@ -95,31 +135,38 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
     }
 
     #[rpc_service]
-    trait FooService {
+    trait FooService: MaybeSend + MaybeSync {
         async fn unary(&self, index: u64, arg1: TestStruct) -> TestStruct;
-        async fn msg_streaming(&self, stream: TransStream<String, impl SerdeFormat>);
-        async fn msg_streaming2(&self, count: usize, stream: TransStream<String, impl SerdeFormat>);
+        async fn msg_streaming(&self, stream: TransStream<String, impl SerdeFormat>) -> u64;
+        async fn msg_streaming2(
+            &self,
+            count: u64,
+            stream: TransStream<String, impl SerdeFormat>,
+        ) -> u64;
         async fn reply_streaming(
             &self,
-        ) -> impl Stream<Item = Result<usize, RpcError>> + MaybeSend + 'static;
+        ) -> impl Stream<Item = Result<u64, RpcError>> + MaybeSend + 'static;
         async fn reply_streaming2(
             &self,
-            count: usize,
-        ) -> impl Stream<Item = Result<usize, RpcError>> + MaybeSend + 'static;
+            count: u64,
+        ) -> impl Stream<Item = Result<u64, RpcError>> + MaybeSend + 'static;
         async fn bidirectional_streaming(
             &self,
-            count: usize,
+            count: u64,
             stream: TransStream<String, impl SerdeFormat>,
         ) -> impl Stream<Item = Result<String, RpcError>> + MaybeSend + 'static;
         async fn bidirectional_streaming2(
             &self,
-            count: usize,
+            count: u64,
             stream: TransStream<Bytes, impl SerdeFormat>,
         ) -> impl Stream<Item = Result<Bytes, RpcError>> + MaybeSend + 'static;
 
         async fn bytes(&self, a: Bytes) -> Bytes;
     }
-    struct FooServiceImpl(String);
+    struct FooServiceImpl {
+        name: String,
+        count: u64,
+    };
     impl FooService for FooServiceImpl {
         fn unary(
             &self,
@@ -132,7 +179,7 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
         fn msg_streaming(
             &self,
             mut stream: TransStream<String, impl SerdeFormat>,
-        ) -> impl Future<Output = ()> + MaybeSend {
+        ) -> impl Future<Output = u64> + MaybeSend {
             async move {
                 let mut i = 0;
                 while let Some(n) = stream.next().await {
@@ -140,17 +187,18 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
                     assert_eq!(item, get_tests_string_item(i));
                     i += 1;
                 }
-                assert_eq!(i, TEST_ITEM_COUNT);
+                assert_eq!(i, self.count);
+                i
             }
         }
 
         fn msg_streaming2(
             &self,
-            count: usize,
+            count: u64,
             mut stream: TransStream<String, impl SerdeFormat>,
-        ) -> impl Future<Output = ()> + MaybeSend {
+        ) -> impl Future<Output = u64> + MaybeSend {
             async move {
-                assert_eq!(count, TEST_ITEM_COUNT);
+                assert_eq!(count, self.count);
                 let mut i = 0;
                 while let Some(n) = stream.next().await {
                     let item = n.unwrap();
@@ -158,46 +206,47 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
                     i += 1;
                 }
                 assert_eq!(i, count);
+                i
             }
         }
 
         fn reply_streaming(
             &self,
         ) -> impl Future<
-            Output = impl Stream<Item = Result<usize, RpcError>> + MaybeSend + 'static,
+            Output = impl Stream<Item = Result<u64, RpcError>> + MaybeSend + 'static,
         > + MaybeSend {
-            async { futures_util::stream::iter((0..TEST_ITEM_COUNT).map(|n| Ok(n))) }
+            async { futures_util::stream::iter((0..self.count).map(|n| Ok(n))) }
         }
 
         fn reply_streaming2(
             &self,
-            count: usize,
+            count: u64,
         ) -> impl Future<
-            Output = impl Stream<Item = Result<usize, RpcError>> + MaybeSend + 'static,
+            Output = impl Stream<Item = Result<u64, RpcError>> + MaybeSend + 'static,
         > + MaybeSend {
-            assert_eq!(count, TEST_ITEM_COUNT);
+            assert_eq!(count, self.count);
             async move { futures_util::stream::iter((0..count).map(|n| Ok(n))) }
         }
 
         fn bidirectional_streaming(
             &self,
-            count: usize,
+            count: u64,
             stream: TransStream<String, impl SerdeFormat>,
         ) -> impl Future<
             Output = impl Stream<Item = Result<String, RpcError>> + MaybeSend + 'static,
         > + MaybeSend {
-            assert_eq!(count, TEST_ITEM_COUNT);
-            async move { stream.map(|n| n.map(|n| format!("Result:{n}"))) }
+            assert_eq!(count, self.count);
+            async move { stream.map(move |n| n.map(|n| format!("Result:{n}"))) }
         }
 
         fn bidirectional_streaming2(
             &self,
-            count: usize,
+            count: u64,
             stream: TransStream<Bytes, impl SerdeFormat>,
         ) -> impl Future<
             Output = impl Stream<Item = Result<Bytes, RpcError>> + MaybeSend + 'static,
         > + MaybeSend {
-            assert_eq!(count, TEST_ITEM_COUNT);
+            assert_eq!(count, self.count);
             async move {
                 stream.map(|n| {
                     n.map(|n| format!("Result:{}", String::from_utf8_lossy(n.chunk())).into())
@@ -209,34 +258,46 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
             async move { a }
         }
     }
-    const TEST_ITEM_COUNT: usize = 1024;
-    fn get_tests_string_item(i: usize) -> String {
+    fn get_tests_string_item(i: u64) -> String {
         format!("Item {}", i)
     }
-    let gen_serve = move |name: String| {
+    let gen_serve = move |name: String, count: u64| {
         move |channel: XyRpcChannel<_, FooServiceSchema>| {
             let name = name.clone();
+            let span = info_span!("channel serve", name);
             async move {
                 let mut test_struct1 = TestStruct::test_data(name);
-                for i in 0..8 {
-                    test_struct1.index = i;
+                for i in 0..u8::MAX {
+                    test_struct1.index = i as _;
                     let _r = channel.unary(&(i as _), &test_struct1).await?;
                     assert_eq!(test_struct1, _r);
                 }
-                for i in 0..8 {
+                for i in 0..u8::MAX {
                     let bytes1 = Bytes::copy_from_slice(&[i, u8::MAX - i]).into();
                     let _r = channel.bytes(&bytes1).await?;
                     assert_eq!(bytes1, _r)
                 }
-                let stream = futures_util::stream::iter(
-                    (0..TEST_ITEM_COUNT).map(|n| Ok(get_tests_string_item(n))),
-                );
-                let _r = channel.msg_streaming(stream).await?;
+                let stream = futures_util::stream::unfold(0, move |state| async move {
+                    if state == count {
+                        return None;
+                    }
 
-                let stream = futures_util::stream::iter(
-                    (0..TEST_ITEM_COUNT).map(|n| Ok(get_tests_string_item(n))),
-                );
-                let _r = channel.msg_streaming2(&TEST_ITEM_COUNT, stream).await?;
+                    sleep_some().await;
+                    Some((Ok(get_tests_string_item(state as _)), state + 1))
+                })
+                .boxed();
+                let _r = channel.msg_streaming(stream).await?;
+                assert_eq!(_r, count);
+
+                let stream = futures_util::stream::unfold(0, move |state| async move {
+                    if state == count {
+                        return None;
+                    }
+                    sleep_some().await;
+                    Some((Ok(get_tests_string_item(state as _)), state + 1))
+                });
+                let _r = channel.msg_streaming2(&count, stream).await?;
+                assert_eq!(_r, count);
 
                 {
                     let mut stream = channel.reply_streaming().await?;
@@ -247,10 +308,10 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
                         assert_eq!(item, i);
                         i += 1;
                     }
-                    assert_eq!(i, TEST_ITEM_COUNT);
+                    assert_eq!(i, count);
                 }
                 {
-                    let mut stream = channel.reply_streaming2(&TEST_ITEM_COUNT).await?;
+                    let mut stream = channel.reply_streaming2(&count).await?;
 
                     let mut i = 0;
                     while let Some(n) = stream.next().await {
@@ -258,31 +319,43 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
                         assert_eq!(item, i);
                         i += 1;
                     }
-                    assert_eq!(i, TEST_ITEM_COUNT);
+                    assert_eq!(i, count);
                 }
                 {
-                    let stream = futures_util::stream::iter(
-                        (0..TEST_ITEM_COUNT).map(|n| Ok(get_tests_string_item(n))),
-                    );
-                    let mut stream = channel
-                        .bidirectional_streaming(&TEST_ITEM_COUNT, stream)
-                        .await?;
+                    let stream = futures_util::stream::unfold(0, move |state| async move {
+                        if state == count {
+                            return None;
+                        }
 
+                        sleep_some().await;
+                        Some((Ok(get_tests_string_item(state as _)), state + 1))
+                    })
+                    .boxed();
+                    let mut stream = channel.bidirectional_streaming(&count, stream).await?;
                     let mut i = 0;
                     while let Some(n) = stream.next().await {
                         let item = n.unwrap();
                         assert_eq!(item, format!("Result:{}", get_tests_string_item(i)));
                         i += 1;
                     }
-                    assert_eq!(i, TEST_ITEM_COUNT);
+                    assert_eq!(i, count);
                 }
                 {
-                    let stream = futures_util::stream::iter(
-                        (0..TEST_ITEM_COUNT).map(|n| Ok(get_tests_string_item(n).into())),
-                    );
-                    let mut stream = channel
-                        .bidirectional_streaming2(&TEST_ITEM_COUNT, stream)
-                        .await?;
+                    let stream = futures_util::stream::unfold(0, move |state| async move {
+                        if state == count {
+                            return None;
+                        }
+
+                        sleep_some().await;
+                        Some((
+                            Ok(Bytes::copy_from_slice(
+                                get_tests_string_item(state as _).as_bytes(),
+                            )),
+                            state + 1,
+                        ))
+                    })
+                    .boxed();
+                    let mut stream = channel.bidirectional_streaming2(&count, stream).await?;
 
                     let mut i = 0;
                     while let Some(n) = stream.next().await {
@@ -293,12 +366,18 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
                         });
                         i += 1;
                     }
-                    assert_eq!(i, TEST_ITEM_COUNT);
+                    assert_eq!(i, count);
                 }
                 Ok(())
             }
+            .instrument(span)
         }
     };
+    let count1 = 32;
+    let count2 = 32;
+    let serve1 = gen_serve("peer1".into(), count2);
+    let serve2 = gen_serve("peer2".into(), count1);
+    // let serve2 = |_| async move { Ok(()) };
     match run_way {
         RunAsyncWay::Futures => {
             serve_duplex_from(
@@ -340,27 +419,41 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
                 },
                 serde_format,
                 (
-                    |_| FooServiceImpl("Futures".into()),
-                    gen_serve("peer1".into()),
+                    |_| FooServiceImpl {
+                        name: "Futures".into(),
+                        count: count1,
+                    },
+                    serve1,
                 ),
                 (
-                    |_| FooServiceImpl("Futures".into()),
-                    gen_serve("peer2".into()),
+                    |_| FooServiceImpl {
+                        name: "Futures".into(),
+                        count: count2,
+                    },
+                    serve2,
                 ),
             )
             .await
             .unwrap();
         }
         RunAsyncWay::Tokio => {
-            serve_duplex_tokio(
+            let (peer1, peer2) = get_tokio_net_duplex().await;
+            serve_duplex_from_tokio(
+                (peer1.into_split(), peer2.into_split()),
                 serde_format,
                 (
-                    |_| FooServiceImpl("Futures".into()),
-                    gen_serve("peer1".into()),
+                    |_| FooServiceImpl {
+                        name: "Tokio".into(),
+                        count: count1,
+                    },
+                    serve1,
                 ),
                 (
-                    |_| FooServiceImpl("Futures".into()),
-                    gen_serve("peer2".into()),
+                    |_| FooServiceImpl {
+                        name: "Tokio".into(),
+                        count: count2,
+                    },
+                    serve2,
                 ),
             )
             .await
@@ -374,12 +467,18 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
                     (peer1.into_split(), peer2.into_split()),
                     serde_format,
                     (
-                        |_| FooServiceImpl("Futures".into()),
-                        gen_serve("peer1".into()),
+                        |_| FooServiceImpl {
+                            name: "Compio".into(),
+                            count: count1,
+                        },
+                        serve1,
                     ),
                     (
-                        |_| FooServiceImpl("Futures".into()),
-                        gen_serve("peer2".into()),
+                        |_| FooServiceImpl {
+                            name: "Compio".into(),
+                            count: count2,
+                        },
+                        serve2,
                     ),
                 )
                 .await
@@ -427,4 +526,11 @@ async fn get_tokio_net_duplex() -> (tokio::net::TcpStream, tokio::net::TcpStream
     )
     .unwrap();
     (accepted_stream, connected_stream)
+}
+
+async fn sleep_some() {
+    #[cfg(not(feature = "rt_compio"))]
+    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    #[cfg(feature = "rt_compio")]
+    compio::time::sleep(std::time::Duration::from_millis(1)).await;
 }

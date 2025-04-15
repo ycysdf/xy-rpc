@@ -115,10 +115,7 @@ impl<
                 let serde_format = serde_format.clone();
                 move |stream| SendRpcMsgAll {
                     stream,
-                    cancel_on_drop: SendCancelOnDrop {
-                        msg_sender: msg_sender.clone(),
-                        op_id,
-                    },
+                    cancel_on_drop: None,
                     msg_sender,
                     serde_format,
                     is_end: false,
@@ -234,10 +231,11 @@ impl<
                 let serde_format = serde_format.clone();
                 move |stream| SendRpcMsgAll {
                     stream,
-                    cancel_on_drop: SendCancelOnDrop {
-                        msg_sender: msg_sender.clone(),
-                        op_id,
-                    },
+                    cancel_on_drop: None,
+                    // cancel_on_drop: Some(SendCancelOnDrop {
+                    //     msg_sender: msg_sender.clone(),
+                    //     op_id,
+                    // }),
                     msg_sender,
                     serde_format,
                     is_end: false,
@@ -349,26 +347,13 @@ impl<S, F> StreamWithFut<S, F> {
     }
 }
 
-impl<S: Stream, F: Future<Output = S::Item>> Stream for StreamWithFut<S, F> {
+impl<S: Stream, F: Future> Stream for StreamWithFut<S, F> {
     type Item = S::Item;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let me = self.project();
-        let prev_poll_fut = *me.prev_poll_fut;
-        *me.prev_poll_fut = !prev_poll_fut;
-        if !prev_poll_fut {
-            let _poll = me.future.poll(cx);
-            if _poll.is_ready() {
-                return _poll.map(|n| Some(n));
-            }
-            me.stream.poll_next(cx)
-        } else {
-            let _poll = me.stream.poll_next(cx);
-            if _poll.is_ready() {
-                return _poll;
-            }
-            me.future.poll(cx).map(|n| Some(n))
-        }
+        let _poll = me.future.poll(cx);
+        me.stream.poll_next(cx)
     }
 }
 
@@ -451,7 +436,7 @@ pub struct SendRpcMsgAll<S, SF, T, OI = T> {
     serde_format: SF,
     is_end: bool,
     op_id: RpcOpId,
-    cancel_on_drop: SendCancelOnDrop,
+    cancel_on_drop: Option<SendCancelOnDrop>,
     _marker: PhantomData<(T, OI)>,
 }
 
@@ -522,6 +507,7 @@ where
                             op_id
                         },
                     })?;
+                cx.waker().wake_by_ref();
             }
         }
         Poll::Pending

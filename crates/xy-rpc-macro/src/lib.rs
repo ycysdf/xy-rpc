@@ -47,6 +47,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // let msg_reply_ref_enum_ident = format_ident!("{}ReplyRefMsg", ast.ident);
     let _handler_ident = format_ident!("{}Handler", ast.ident);
     let schema_ident = format_ident!("{}Schema", ast.ident);
+    let wasm_channel_proxy = format_ident!("{}ChannelProxy", ast.ident);
     let caller_ident = format_ident!("{}Caller", ast.ident);
     let ref_lifetime = Lifetime::new("'a", Span::call_site());
 
@@ -181,7 +182,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let (rpc_call_fn, rpc_call_fn_impl, handle_impl): (Vec<_>, Vec<_>, Vec<_>) = ast
+    let (rpc_call_fn, rpc_call_fn_impl, handle_impl,wasm_rpc_call_proxy): (Vec<_>, Vec<_>, Vec<_>, Vec<_>) = ast
       .items
       .iter()
       .filter_map(|n| match n {
@@ -208,6 +209,23 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
             })
             .collect();
          let mut rpc_call_fn = n.sig.clone();
+         let mut wasm_rpc_call_fn = n.sig.clone();
+         for n in wasm_rpc_call_fn.inputs.iter_mut() {
+            let pat_ty = match n {
+               FnArg::Typed(n) => n,
+               _ => continue,
+            };
+            let Type::Path(ty) = &*pat_ty.ty else {
+               continue
+            };
+            let Some(segment) = ty.path.segments.last() else {
+               continue
+            };
+            if segment.ident == "TransStream" {
+               pat_ty.ty = parse_quote!(js_sys::AsyncIterator);
+               pat_ty.attrs.push(parse_quote!(#[wasm_bindgen(unchecked_param_type = "AsyncIterator<any>")]));
+            }
+         }
          for (i,arg) in rpc_call_fn.inputs.iter_mut().enumerate() {
             if let FnArg::Typed(arg) = arg {
                if stream_arg.is_some_and(|n| n.3 == i) {
@@ -256,6 +274,25 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                }
                parse_quote! {
                   -> impl core::future::Future<Output = Result<#output_ty, xy_rpc::RpcError>> + xy_rpc::maybe_send::MaybeSend +'static
+               }
+            }
+         };
+         wasm_rpc_call_fn.output = match wasm_rpc_call_fn.output {
+            ReturnType::Default => {
+               if !is_async {
+                  panic!("rpc fn return type must impl Future");
+               }
+               parse_quote! {
+                  -> Result<(), wasm_bindgen::JsValue>
+               }
+            }
+            ReturnType::Type(_, ty) => {
+               let output_ty = get_future_output(!is_async, &*ty);
+               if !is_async {
+                  wasm_rpc_call_fn.asyncness = Some(Default::default());
+               }
+               parse_quote! {
+                  ->  Result<#output_ty, wasm_bindgen::JsValue>
                }
             }
          };
@@ -349,6 +386,41 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                   }
                }
             },
+            {
+               match stream_arg {
+                  None => {
+                     let fields = fields.iter();
+                     quote! {
+                        pub #wasm_rpc_call_fn {
+                          self.rpc_channel.#fn_ident(#(&#fields),*).await.map_err(|err| wasm_bindgen::JsValue::from(err.to_string()))
+                        }
+                     }
+                  },
+                  Some((stream_arg, _, item_ty, _)) => {
+                     let stream_arg = &stream_arg.pat;
+                     let d:Option<Comma> = (!fields.is_empty()).then_some(Comma::default());
+                     let fields = fields.iter();
+                     quote! {
+                        pub #wasm_rpc_call_fn {
+                          self.rpc_channel.#fn_ident(#(&#fields),* #d futures_util::stream::unfold(#stream_arg,move |state| async move {
+                                 let promise = state.next().unwrap();
+                                 let value = match wasm_bindgen_futures::JsFuture::from(promise).await {
+                                    Ok(value) => value,
+                                    Err(err) => return Some((Err(xy_rpc::RpcError::OtherError {
+                                       message: format!("{err:?}")
+                                    }),state))
+                                 };
+                                 match value.into_serde::<#item_ty>().map_err(|err| xy_rpc::RpcError::SerdeError(Box::new(err))) {
+                                    Ok(value) => Some((Ok(value),state)),
+                                    Err(err) => Some((Err(err),state))
+                                 }
+                             }
+                           )).await.map_err(|err| wasm_bindgen::JsValue::from(err.to_string()))
+                        }
+                     }
+                  }
+               }
+            },
          )
       })
       .collect();
@@ -385,6 +457,40 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let msg_structs = rpc_items.iter().map(|n| &n.msg_struct);
     let msg_ref_structs = rpc_items.iter().map(|n| &n.msg_ref_struct);
 
+
+   let wasm_export = {
+      // let mod_ident = format_ident!("{}", ast.ident.to_string().to_case(Case::Snake));
+      let channel_fn = format_ident!("{}", ast.ident.to_string().to_case(Case::Snake));
+      // let schema_ident = format_ident!("{}Schema", ast.ident);
+      quote! {
+         #[cfg(target_arch = "wasm32")]
+         #[wasm_bindgen]
+         pub async fn #channel_fn(url: &str) -> Result<#wasm_channel_proxy, wasm_bindgen::JsValue> {
+            use xy_rpc::ChannelBuilderWebExt;
+             let (read, write) = xy_rpc::get_http_stream_from_url(url).await?;
+             let (rpc_channel, future) = ChannelBuilder::new(xy_rpc::formats::JsonFormat::default())
+                 .only_call::<#schema_ident>()
+                 .build_from_web_stream(read, write);
+             wasm_bindgen_futures::spawn_local(async move {
+                 let r = future.await;
+             });
+             Ok(#wasm_channel_proxy { rpc_channel })
+         }
+
+         #[cfg(target_arch = "wasm32")]
+         #[wasm_bindgen]
+         pub struct #wasm_channel_proxy {
+             rpc_channel: xy_rpc::XyRpcChannel<xy_rpc::formats::JsonFormat, #schema_ident>,
+         }
+
+         #[cfg(target_arch = "wasm32")]
+         #[wasm_bindgen]
+         impl #wasm_channel_proxy {
+            #(#wasm_rpc_call_proxy)*
+         }
+      }
+   };
+
     quote! {
         #ast
         #schema
@@ -392,6 +498,7 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #impls
         #(#msg_structs)*
         #(#msg_ref_structs)*
+        #wasm_export
     }
     .into()
 }

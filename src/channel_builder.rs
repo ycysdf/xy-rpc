@@ -3,7 +3,8 @@ use crate::frame::{RpcFrame, RpcMsgKind};
 use crate::maybe_send::{MaybeSend, MaybeSync};
 use crate::{RpcError, RpcTransportSink, RpcTransportStream, XyRpcChannel, frame, maybe_send};
 use bytes::{Bytes, BytesMut};
-use futures_util::{AsyncReadExt, AsyncWriteExt, StreamExt};
+use futures_util::stream::BoxStream;
+use futures_util::{AsyncReadExt, AsyncWriteExt, Stream, StreamExt, TryStream};
 use std::marker::PhantomData;
 use std::prelude::rust_2015::Box;
 
@@ -58,7 +59,6 @@ impl<S: RpcSchema> RpcMsgHandler<S> for () {
 //         serde_format: &impl SerdeFormat,
 //     ) -> Result<impl Future<Output = Result<HandleReply, RpcError>> + MaybeSend, RpcError>;
 // }
-
 
 pub struct ChannelBuilder<SF, CS = (), MH = (), MSG = ()> {
     msg_handler: MH,
@@ -161,10 +161,10 @@ where
         let sink = new_transport_sink(write);
         self.build_from_transport(sink, stream)
     }
-    pub fn build_from_transport(
+    pub fn build_from_transport<TSK: RpcTransportSink + Unpin, TSM: RpcTransportStream + Unpin>(
         self,
-        transport_sink: impl RpcTransportSink + Unpin,
-        transport_stream: impl RpcTransportStream + Unpin,
+        transport_sink: TSK,
+        transport_stream: TSM,
     ) -> (
         XyRpcChannel<SF, CS>,
         impl Future<Output = Result<(), RpcError>> + MaybeSend + 'static,
@@ -190,7 +190,7 @@ pub struct RpcMsgHandlerWrapper<T> {
 #[cfg(feature = "std")]
 pub fn new_transport_stream(
     read: impl futures_util::AsyncRead + Unpin + MaybeSend + 'static,
-) -> impl RpcTransportStream<Error = RpcError> + Unpin {
+) -> impl RpcTransportStream + Unpin {
     let buf = BytesMut::with_capacity(1024 * 8);
     let future = futures_util::stream::unfold((read, buf), move |(mut read, mut buf)| async move {
         match frame::read_frame(&mut read).await? {

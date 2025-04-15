@@ -10,11 +10,11 @@ mod tests {
     struct Test2Service;
 
     #[rpc_service]
-    trait RpcTest2Service: Send + Sync {
-        fn hello(&self, x: u32) -> impl Future<Output = u32> + Send;
+    trait RpcTest2Service: MaybeSend + MaybeSync {
+        fn hello(&self, x: u32) -> impl Future<Output = u32> + MaybeSend;
     }
     impl RpcTest2Service for Test2Service {
-        fn hello(&self, x: u32) -> impl Future<Output = u32> + Send {
+        fn hello(&self, x: u32) -> impl Future<Output = u32> + MaybeSend {
             async move {
                 tokio::time::sleep(Duration::from_millis(x as _)).await;
                 x
@@ -25,24 +25,24 @@ mod tests {
     struct TestService;
 
     #[rpc_service]
-    trait RpcTestService: Send + Sync {
-        fn a(&self, x: u32) -> impl Future<Output = u32> + Send;
-        fn b(&self, p1: u32, p2: String, p3: bool) -> impl Future<Output = u32> + Send;
-        fn c(&self, x: ComplexObj) -> impl Future<Output = String> + Send;
+    trait RpcTestService: MaybeSend + MaybeSync {
+        fn a(&self, x: u32) -> impl Future<Output = u32> + MaybeSend;
+        fn b(&self, p1: u32, p2: String, p3: bool) -> impl Future<Output = u32> + MaybeSend;
+        fn c(&self, x: ComplexObj) -> impl Future<Output = String> + MaybeSend;
     }
     impl RpcTestService for TestService {
-        fn a(&self, x: u32) -> impl Future<Output = u32> + Send {
+        fn a(&self, x: u32) -> impl Future<Output = u32> + MaybeSend {
             async move {
                 tokio::time::sleep(Duration::from_millis(x as _)).await;
                 x
             }
         }
 
-        fn b(&self, p1: u32, p2: String, p3: bool) -> impl Future<Output = u32> + Send {
+        fn b(&self, p1: u32, p2: String, p3: bool) -> impl Future<Output = u32> + MaybeSend {
             async move { p1 }
         }
 
-        fn c(&self, x: ComplexObj) -> impl Future<Output = String> + Send {
+        fn c(&self, x: ComplexObj) -> impl Future<Output = String> + MaybeSend {
             async move { format!("{x:?}") }
         }
     }
@@ -51,6 +51,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use tokio::try_join;
     use xy_rpc::formats::JsonFormat;
+    use xy_rpc::maybe_send::{MaybeSend, MaybeSync};
     use xy_rpc::tokio::serve_duplex_tokio;
     use xy_rpc_macro::rpc_service;
 

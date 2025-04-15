@@ -1,16 +1,18 @@
 use crate::formats::SerdeFormat;
 use crate::tokio::ChannelBuilderTokioExt;
 use crate::{ChannelBuilder, RpcMsgHandler, RpcMsgHandlerWrapper, RpcSchema, XyRpcChannel};
+use alloc::string::ToString;
+use alloc::sync::Arc;
 use axum::body::Body;
 use axum::extract::Request;
+use axum::handler::Handler;
 use axum::http::{HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use futures_util::future::BoxFuture;
-use futures_util::{FutureExt, StreamExt};
 use core::convert::Infallible;
 use core::marker::PhantomData;
-use core::sync::Arc;
 use core::task::{Context, Poll};
+use futures_util::future::BoxFuture;
+use futures_util::{FutureExt, StreamExt};
 use tokio::io::{AsyncWriteExt, SimplexStream, WriteHalf};
 use tower::Service;
 use uuid::{Uuid, uuid};
@@ -25,7 +27,7 @@ where
 {
     serde_format: SF,
     streams: Arc<dashmap::DashMap<Uuid, StreamInfo>>,
-    channel_sender: flume::Sender<(Request, XyRpcChannel<SF,CS>)>,
+    channel_sender: flume::Sender<(Request, XyRpcChannel<SF, CS>)>,
     f: Arc<F>,
     _marker: PhantomData<(F, S, T)>,
 }
@@ -48,13 +50,14 @@ where
 impl<SF, F, CS, S, T> XyWebRpcService<SF, F, CS, S, T>
 where
     SF: SerdeFormat,
-    F: for<'a> Fn(&'a mut Request, XyRpcChannel<SF,CS>) -> T,
+    F: for<'a> Fn(&'a mut Request, XyRpcChannel<SF, CS>) -> T,
     CS: RpcSchema,
     S: RpcSchema,
     RpcMsgHandlerWrapper<T>: RpcMsgHandler<S>,
 {
-    pub fn new(f: F, serde_format: SF) -> (Self, flume::Receiver<(Request, XyRpcChannel<SF,CS>)>) {
-        let (channel_sender, channel_receiver) = flume::unbounded::<(Request, XyRpcChannel<SF,CS>)>();
+    pub fn new(f: F, serde_format: SF) -> (Self, flume::Receiver<(Request, XyRpcChannel<SF, CS>)>) {
+        let (channel_sender, channel_receiver) =
+            flume::unbounded::<(Request, XyRpcChannel<SF, CS>)>();
 
         (
             Self {
@@ -75,7 +78,7 @@ impl<SF, F, CS, S, T> Service<Request> for XyWebRpcService<SF, F, CS, S, T>
 where
     SF: SerdeFormat,
     T: 'static,
-    F: for<'a> Fn(&'a mut Request, XyRpcChannel<SF,CS>) -> T,
+    F: for<'a> Fn(&'a mut Request, XyRpcChannel<SF, CS>) -> T,
     CS: RpcSchema,
     S: RpcSchema,
     RpcMsgHandlerWrapper<T>: RpcMsgHandler<S>,
@@ -91,17 +94,16 @@ where
     fn call(&mut self, mut req: Request) -> Self::Future {
         // println!("{:?}", req.uri());
         // async move { Ok(StatusCode::OK.into_response()) }.boxed()
+        let stream_id = req.uri().query().unwrap().split("=").last().unwrap();
+        let stream_id = Uuid::parse_str(stream_id).unwrap();
         match req.uri().path() {
             "/data_stream" => {
-                // let stream_id = Uuid::new_v4();
-                let stream_id = uuid!("526fb8c9-b4af-45f1-8ca4-806d09602676");
                 let (read_read, read_write) = tokio::io::simplex(1024 * 8);
                 let (write_read, write_write) = tokio::io::simplex(1024 * 8);
                 let write = tokio_util::io::ReaderStream::new(write_read);
 
                 let (channel, future) = ChannelBuilder::new(self.serde_format.clone())
-                    .call::<CS>()
-                    .serve(|channel| (self.f)(&mut req, channel))
+                    .call_and_serve(|channel| (self.f)(&mut req, channel))
                     .build_from_tokio_read_write((read_read, write_write));
                 tokio::spawn(future);
                 self.channel_sender.send((req, channel)).unwrap();
@@ -117,15 +119,6 @@ where
                 async move { Ok(response) }.boxed()
             }
             "/write_data" => {
-                let stream_id: Uuid = uuid!("526fb8c9-b4af-45f1-8ca4-806d09602676");
-                // let stream_id: Uuid = req
-                //     .headers()
-                //     .get(XY_RPC_HEADER_KEY_STREAM_ID)
-                //     .unwrap()
-                //     .to_str()
-                //     .unwrap()
-                //     .parse()
-                //     .unwrap();
                 let mut body = req.into_body().into_data_stream();
 
                 if !self.streams.contains_key(&stream_id) {

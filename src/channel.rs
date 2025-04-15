@@ -18,7 +18,7 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use derive_more::{Display, Error, From};
 use futures_util::stream::FuturesUnordered;
-use futures_util::{FutureExt, SinkExt, Stream, StreamExt, TryStreamExt};
+use futures_util::{FutureExt, SinkExt, Stream, StreamExt, TryStream, TryStreamExt};
 use hashbrown::HashMap;
 use pin_project::pin_project;
 use serde::Serialize;
@@ -112,8 +112,8 @@ where
 
 impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
     pub fn new(
-        mut transport_sink: impl RpcTransportSink + Unpin,
-        mut transport_stream: impl RpcTransportStream + Unpin,
+        #[allow(unused_mut)] mut transport_sink: impl RpcTransportSink + Unpin,
+        #[allow(unused_mut)] mut transport_stream: impl RpcTransportStream + Unpin,
         msg_handler: impl ServiceFactory<SF, CS>,
         serde_format: SF,
     ) -> (
@@ -123,6 +123,12 @@ impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
     where
         XyRpcChannel<SF, CS>: Clone,
     {
+        #[cfg(feature = "tracing_live")]
+        use tracing_lv_track::{TLSinkInstrumentExt, TLStreamInstrumentExt};
+        #[cfg(feature = "tracing_live")]
+        let mut transport_sink = transport_sink.instrument_sink("transport sink");
+        #[cfg(feature = "tracing_live")]
+        let mut transport_stream = transport_stream.instrument_stream("transport stream");
         let (msg_sender, msg_receiver) = flume::unbounded();
         let channel = Self {
             sender_id_atomic: Arc::new(portable_atomic::AtomicU16::new(1)),
@@ -147,223 +153,256 @@ impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
             futures.push(SelectFutures::Msg(
                 msg_receiver.recv_async().map(SelectFutures::Msg),
             ));
+
+            let mut handle_frame =
+                |frame: RpcFrame,
+                 futures: &mut FuturesUnordered<_>,
+                 calls: &mut HashMap<RpcOpId, OneOrMultiSender>| {
+                    match frame.head {
+                        RpcFrameHead::Msg(_head) => {
+                            warn!("unexpected msg frame.");
+                        }
+                        // RpcFrameHead::Rpc(RpcFrameHeadRpc{reply,exclusive: _,stream,msg_kind,msg_id,payload_len: _  }) => {
+                        RpcFrameHead::Rpc(head) => {
+                            let op_id = head.op_id();
+                            // println!("Rpc key: {key:?}. reply: {reply}");
+                            if !head.reply() {
+                                match head.stream() {
+                                    RpcStreamKind::None | RpcStreamKind::StreamStart => {
+                                        let (stream_sender, stream_receiver) = (head.stream()
+                                            == RpcStreamKind::StreamStart)
+                                            .then_some(flume::unbounded())
+                                            .unzip();
+                                        match msg_handler.handle(
+                                            RpcRawMsg {
+                                                msg: frame.payload,
+                                                msg_kind: head.msg_kind(),
+                                            },
+                                            stream_receiver,
+                                            &serde_format,
+                                        ) {
+                                            Ok(fut) => {
+                                                if let Some(stream_sender) = stream_sender {
+                                                    call_msg_stream_item_sender
+                                                        .insert(op_id, stream_sender);
+                                                }
+                                                futures.push(SelectFutures::RpcHanded(fut.map(
+                                                    move |reply| {
+                                                        SelectFutures::RpcHanded((reply, op_id))
+                                                    },
+                                                )));
+                                            }
+                                            Err(err) => {
+                                                warn!("error handling message: {:?}", err);
+                                            }
+                                        }
+                                    }
+                                    RpcStreamKind::StreamItem => {
+                                        let Some(sender) = call_msg_stream_item_sender.get(&op_id)
+                                        else {
+                                            warn!(?op_id, "not found stream item sender");
+                                            return;
+                                        };
+                                        // TODO:
+                                        sender.send(frame.payload).unwrap()
+                                    }
+                                    RpcStreamKind::StreamEnd => {
+                                        if call_msg_stream_item_sender.remove(&op_id).is_none() {
+                                            warn!(?op_id, "not found stream item sender")
+                                        }
+                                    }
+                                }
+                            } else {
+                                match head.stream() {
+                                    RpcStreamKind::None => {
+                                        let Some(call_variant) = calls.remove(&op_id) else {
+                                            warn!(?op_id, "unexpected reply frame.");
+                                            return;
+                                        };
+                                        let OneOrMultiSender::Unary(reply_sender) = call_variant
+                                        else {
+                                            warn!(?op_id, "unexpected call.");
+                                            return;
+                                        };
+                                        // err when call cancel
+                                        let _ = reply_sender.send(frame.payload);
+                                    }
+                                    RpcStreamKind::StreamStart => {}
+                                    RpcStreamKind::StreamItem => {
+                                        let Some(call_variant) = calls.get(&op_id) else {
+                                            warn!(?op_id, "unexpected reply frame.");
+                                            return;
+                                        };
+                                        let OneOrMultiSender::Streaming(reply_item_sender) =
+                                            &call_variant
+                                        else {
+                                            warn!(?op_id, "unexpected call.");
+                                            return;
+                                        };
+                                        let _ = reply_item_sender.send(frame.payload);
+                                    }
+                                    RpcStreamKind::StreamEnd => {
+                                        let Some(call_variant) = calls.remove(&op_id) else {
+                                            warn!(?op_id, "unexpected reply frame.");
+                                            return;
+                                        };
+                                        drop(call_variant);
+                                    }
+                                }
+                            }
+                        }
+                        RpcFrameHead::CancelRpc(head) => {
+                            let op_id = head.op_id();
+                            if calls.remove(&op_id).is_none() {
+                                warn!(?op_id, "cancel op_id. but op not exist")
+                            }
+                        }
+                    }
+                };
+
+            let mut handle_future =
+                async |fut: SelectFutures<(Result<HandleReply, RpcError>, RpcOpId), _, _>,
+                       futures: &mut FuturesUnordered<_>,
+                       calls: &mut HashMap<RpcOpId, OneOrMultiSender>| {
+                    match fut {
+                        SelectFutures::RpcHanded((reply, op_id)) => match reply {
+                            Ok(reply) => {
+                                let payload = reply;
+                                match payload {
+                                    HandleReply::Once(payload) => {
+                                        transport_sink
+                                            .send(RpcFrame {
+                                                head: RpcFrameHead::Rpc(
+                                                    RpcFrameHeadRpc::new()
+                                                        .with_reply(true)
+                                                        .with_exclusive(false)
+                                                        .with_stream(RpcStreamKind::None)
+                                                        .with_msg_kind(op_id.msg_kind)
+                                                        .with_msg_id(op_id.msg_id)
+                                                        .with_payload_len(payload.len() as _),
+                                                ),
+                                                payload,
+                                            })
+                                            .await?;
+                                    }
+                                    HandleReply::Stream(out_stream) => {
+                                        futures.push(SelectFutures::OutStreamNexted(
+                                            get_next_out_stream_future(out_stream, op_id)
+                                                .map(SelectFutures::OutStreamNexted),
+                                        ));
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                warn!("error handling message: {:?}", err);
+                            }
+                        },
+                        SelectFutures::Msg(msg) => {
+                            let Ok(msg): Result<InnerMsg, flume::RecvError> = msg else {
+                                warn!("Call serve end");
+                                return Ok(Some(()));
+                            };
+                            futures.push(SelectFutures::Msg(
+                                msg_receiver.recv_async().map(SelectFutures::Msg),
+                            ));
+                            let frame = match msg {
+                                InnerMsg::Call {
+                                    op_id,
+                                    msg: payload,
+                                    stream,
+                                    reply_sender,
+                                } => {
+                                    if let Some(r) = calls.insert(op_id, reply_sender) {
+                                        warn!(?op_id, "call conflict");
+                                    }
+                                    RpcFrame {
+                                        head: RpcFrameHead::Rpc(
+                                            RpcFrameHeadRpc::new()
+                                                .with_reply(false)
+                                                .with_exclusive(false)
+                                                .with_stream(if stream {
+                                                    RpcStreamKind::StreamStart
+                                                } else {
+                                                    RpcStreamKind::None
+                                                })
+                                                .with_msg_id(op_id.msg_id)
+                                                .with_msg_kind(op_id.msg_kind)
+                                                .with_payload_len(payload.len() as _),
+                                        ),
+                                        payload,
+                                    }
+                                }
+                                InnerMsg::CallStreaming { op_id, item } => {
+                                    if let Some(payload) = item {
+                                        RpcFrame {
+                                            head: RpcFrameHead::Rpc(
+                                                RpcFrameHeadRpc::new()
+                                                    .with_reply(false)
+                                                    .with_exclusive(false)
+                                                    .with_stream(RpcStreamKind::StreamItem)
+                                                    .with_msg_id(op_id.msg_id)
+                                                    .with_msg_kind(op_id.msg_kind)
+                                                    .with_payload_len(payload.len() as _),
+                                            ),
+                                            payload,
+                                        }
+                                    } else {
+                                        RpcFrame {
+                                            head: RpcFrameHead::Rpc(
+                                                RpcFrameHeadRpc::new()
+                                                    .with_reply(false)
+                                                    .with_exclusive(false)
+                                                    .with_stream(RpcStreamKind::StreamEnd)
+                                                    .with_msg_id(op_id.msg_id)
+                                                    .with_msg_kind(op_id.msg_kind)
+                                                    .with_payload_len(0),
+                                            ),
+                                            payload: Bytes::default(),
+                                        }
+                                    }
+                                }
+                                InnerMsg::Cancel(op_id) => RpcFrame::cancel(op_id),
+                            };
+
+                            transport_sink.send(frame).await?;
+                        }
+                        SelectFutures::OutStreamNexted((next, op_id)) => match next {
+                            Some(Ok((out_stream, out_item))) => {
+                                transport_sink.send(out_item).await?;
+                                futures.push(SelectFutures::OutStreamNexted(
+                                    get_next_out_stream_future(out_stream, op_id)
+                                        .map(SelectFutures::OutStreamNexted),
+                                ));
+                            }
+                            Some(Err(err)) => {
+                                warn!("error out stream error: {:?}", err);
+                            }
+                            None => {
+                                transport_sink.send(RpcFrame::out_stream_end(op_id)).await?;
+                            }
+                        },
+                    }
+                    Ok::<_, RpcError>(None)
+                };
+
             loop {
                 futures_util::select! {
-                       frame = transport_stream.try_next().fuse() => {
-                           let Some(frame) = frame.map_err(|err|err.into())? else {
-                               warn!("transport_stream serve end");
-                               break;
-                           };
-                           info!(?frame,"recv frame");
-                           match frame.head {
-                               RpcFrameHead::Msg(_head) => {
-                                   warn!("unexpected msg frame.");
-                               }
-                               // RpcFrameHead::Rpc(RpcFrameHeadRpc{reply,exclusive: _,stream,msg_kind,msg_id,payload_len: _  }) => {
-                               RpcFrameHead::Rpc(head) => {
-                                   let op_id = head.op_id();
-                                   // println!("Rpc key: {key:?}. reply: {reply}");
-                                   if !head.reply() {
-                                       match head.stream() {
-                                           RpcStreamKind::None|RpcStreamKind::StreamStart => {
-                                             let (stream_sender,stream_receiver) = (head.stream() == RpcStreamKind::StreamStart).then_some(flume::unbounded()).unzip();
-                                             match msg_handler.handle(RpcRawMsg { msg: frame.payload,msg_kind:head.msg_kind(),},stream_receiver,&serde_format) {
-                                                 Ok(fut) => {
-                                                     if let Some(stream_sender) = stream_sender {
-                                                         call_msg_stream_item_sender.insert(op_id, stream_sender);
-                                                     }
-                                                     futures.push(SelectFutures::RpcHanded(fut.map(move |reply| SelectFutures::RpcHanded((reply, op_id))),
-                                                     ));
-                                                 }
-                                                 Err(err) => {
-                                                     warn!("error handling message: {:?}", err);
-                                                 }
-                                            }
-                                          }
-                                           RpcStreamKind::StreamItem => {
-                                             let Some(sender) = call_msg_stream_item_sender.get(&op_id) else {
-                                                 warn!(?op_id,"not found stream item sender");
-                                                 continue;
-                                             };
-                                             // TODO:
-                                             sender.send(frame.payload).unwrap()
-                                           }
-                                           RpcStreamKind::StreamEnd => {
-                                             if call_msg_stream_item_sender.remove(&op_id).is_none() {
-                                                 warn!(?op_id,"not found stream item sender")
-                                             }
-                                         }
-                                       }
-                                   } else {
-                                       match head.stream() {
-                                           RpcStreamKind::None => {
-                                               let Some(call_variant) = calls.remove(&op_id) else {
-                                                   warn!(?op_id,"unexpected reply frame.");
-                                                   continue;
-                                               };
-                                               let OneOrMultiSender::Unary(reply_sender) = call_variant else {
-                                                   warn!(?op_id,"unexpected call.");
-                                                   continue;
-                                               };
-                                               // err when call cancel
-                                               let _ = reply_sender.send(frame.payload);
-                                           }
-                                           RpcStreamKind::StreamStart => {}
-                                           RpcStreamKind::StreamItem => {
-                                               let Some(call_variant) = calls.get(&op_id) else {
-                                                   warn!(?op_id,"unexpected reply frame.");
-                                                   continue;
-                                               };
-                                               let OneOrMultiSender::Streaming(reply_item_sender) = &call_variant else {
-                                                   warn!(?op_id,"unexpected call.");
-                                                   continue;
-                                               };
-                                               let _ = reply_item_sender.send(frame.payload);
-                                           }
-                                           RpcStreamKind::StreamEnd => {
-                                               let Some(call_variant) = calls.remove(&op_id) else {
-                                                   warn!(?op_id,"unexpected reply frame.");
-                                                   continue;
-                                               };
-                                               drop(call_variant);
-                                           }
-                                       }
-                                   }
-                               }
-                             RpcFrameHead::CancelRpc(head) => {
-                                  let op_id = head.op_id();
-                                 if calls.remove(&op_id).is_none() {
-                                     warn!(?op_id,"cancel op_id. but op not exist")
-                                 }
-                             }
-                         }
-                       }
-                       r = futures.next().fuse() => {
-                           let Some(r) = r else {
-                               warn!("futures serve end");
-                               break;
-                           };
-                           match r {
-                               SelectFutures::RpcHanded((reply, op_id)) => {
-                                   // serde_format.serialize_to_writer(&mut buf, &reply).map_err(|err| RpcError::SerdeError(err))?;
-                                   // let payload = buf.get_mut().split().freeze();
-                                  match reply {
-                                     Ok(reply) => {
-                                         let payload = reply;
-                                         match payload {
-                                             HandleReply::Once(payload) => {
-                                                 transport_sink
-                                                   .send(RpcFrame {
-                                                   head: RpcFrameHead::Rpc(RpcFrameHeadRpc::new()
-                                                         .with_reply(true)
-                                                         .with_exclusive(false)
-                                                         .with_stream(RpcStreamKind::None)
-                                                         .with_msg_kind(op_id.msg_kind)
-                                                         .with_msg_id(op_id.msg_id)
-                                                         .with_payload_len(payload.len() as _)
-                                                     ),
-                                                     payload,
-                                                 })
-                                                   .await.map_err(|n| n.into())?;
-                                             }
-                                             HandleReply::Stream(out_stream) => {
-                                                 futures.push(SelectFutures::OutStreamNexted(get_next_out_stream_future(out_stream,op_id).map(SelectFutures::OutStreamNexted)));
-                                             }
-                                         }
-                                     }
-                                     Err(err) => {
-                                         warn!("error handling message: {:?}", err);
-                                     }
-                                 }
-                               }
-                               SelectFutures::Msg(msg) => {
-                                   let Ok(msg): Result<
-                                       InnerMsg,
-                                       flume::RecvError,
-                                   > = msg
-                                   else {
-                                       warn!("Call serve end");
-                                       break;
-                                   };
-                                 futures.push(SelectFutures::Msg(
-                                     msg_receiver.recv_async().map(SelectFutures::Msg),
-                                 ));
-                                   match msg {
-                                       InnerMsg::Call{op_id,msg:payload,stream,reply_sender}=>{
-                                         let frame = RpcFrame {
-                                               head: RpcFrameHead::Rpc(RpcFrameHeadRpc::new()
-                                                     .with_reply(false)
-                                                     .with_exclusive(false)
-                                                     .with_stream(if stream {RpcStreamKind::StreamStart}else{RpcStreamKind::None})
-                                                     .with_msg_id(op_id.msg_id)
-                                                     .with_msg_kind(op_id.msg_kind)
-                                                     .with_payload_len(payload.len() as _)
-                                               ),
-                                                 payload,
-                                             };
-                                           info!(?frame,"send frame");
-                                           transport_sink
-                                               .send(frame)
-                                               .await.map_err(|n| n.into())?;
-                                            calls.insert(op_id, reply_sender);
-                                      }
-                                     InnerMsg::CallStreaming{op_id,item} => {
-                                           if let Some(payload) = item {
-                                               transport_sink
-                                                   .send(RpcFrame {
-                                                   head: RpcFrameHead::Rpc(RpcFrameHeadRpc::new()
-                                                         .with_reply(false)
-                                                         .with_exclusive(false)
-                                                         .with_stream(RpcStreamKind::StreamItem)
-                                                         .with_msg_id(op_id.msg_id)
-                                                         .with_msg_kind(op_id.msg_kind)
-                                                         .with_payload_len(payload.len() as _)
-                                                   ),
-                                                     payload,})
-                                                   .await.map_err(|n| n.into())?;
-
-                                             } else {
-                                               transport_sink
-                                                   .send(RpcFrame {
-                                                   head: RpcFrameHead::Rpc(RpcFrameHeadRpc::new()
-                                                         .with_reply(false)
-                                                         .with_exclusive(false)
-                                                         .with_stream(RpcStreamKind::StreamEnd)
-                                                         .with_msg_id(op_id.msg_id)
-                                                         .with_msg_kind(op_id.msg_kind)
-                                                         .with_payload_len(0)
-                                                   ),payload:Bytes::default(),})
-                                                   .await.map_err(|n| n.into())?;
-                                             }
-                                         }
-                                     InnerMsg::Cancel(op_id) => {
-                                           transport_sink
-                                               .send(RpcFrame::cancel(op_id))
-                                               .await.map_err(|n| n.into())?;
-                                         // calls.remove(op_id);
-                                     }
-                                 }
-                            }
-                         SelectFutures::OutStreamNexted((next,op_id)) => {
-                             match next {
-                                 Some(Ok((out_stream,out_item))) => {
-                                    transport_sink
-                                       .send(out_item)
-                                       .await.map_err(|n| n.into())?;
-                                     futures.push(SelectFutures::OutStreamNexted(get_next_out_stream_future(out_stream,op_id).map(SelectFutures::OutStreamNexted)));
-                                 }
-                                 Some(Err(err)) => {
-                                     warn!("error out stream error: {:?}", err);
-                                 }
-                                 None => {
-                                    transport_sink
-                                       .send(RpcFrame::out_stream_end(op_id))
-                                       .await.map_err(|n| n.into())?;
-                                 }
-                             }
-                         }
-                     }
-                    }
+                   frame = transport_stream.try_next().fuse() => {
+                       let Some(frame) = frame? else {
+                           warn!("transport_stream serve end");
+                           break;
+                       };
+                       handle_frame(frame,&mut futures,&mut calls);
+                   }
+                   r = futures.next().fuse() => {
+                       let Some(r) = r else {
+                           warn!("futures serve end");
+                           break;
+                       };
+                       if let Some(_) = handle_future(r,&mut futures,&mut calls).await? {
+                            break;
+                        }
+                 }
                 }
             }
             Ok::<(), RpcError>(())
