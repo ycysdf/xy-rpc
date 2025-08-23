@@ -144,8 +144,11 @@ impl<
                     drop(cancel_when_drop);
                     Ok(reply)
                 }.fuse() => {r},
-                _ = send_all.fuse() => {
-                    unreachable!()
+                r = async {
+                    send_all.await?;
+                    futures_util::future::pending::<Result<Reply, RpcError>>().await
+                }.fuse() => {
+                    r
                 }
             }
         }

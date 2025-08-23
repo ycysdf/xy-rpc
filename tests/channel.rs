@@ -145,7 +145,7 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
         ) -> u64;
         async fn reply_streaming(
             &self,
-        ) -> impl Stream<Item = Result<u64, RpcError>> + MaybeSend + 'static;
+        ) -> impl Stream<Item = Result<u64, RpcError>> + MaybeSend + Unpin + 'static;
         async fn reply_streaming2(
             &self,
             count: u64,
@@ -213,7 +213,7 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
         fn reply_streaming(
             &self,
         ) -> impl Future<
-            Output = impl Stream<Item = Result<u64, RpcError>> + MaybeSend + 'static,
+            Output = impl Stream<Item = Result<u64, RpcError>> + MaybeSend + Unpin + 'static,
         > + MaybeSend {
             async { futures_util::stream::iter((0..self.count).map(|n| Ok(n))) }
         }

@@ -7,11 +7,12 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+tsify = { version = "0.5" }
 gloo-net = { version = "0.6", features = ["http"], default-features = false }
 js-sys = { version = "0.3", default-features = false }
-web-sys = { version = "0.3", features = ["ReadableStream", "WritableStream", "WritableStreamDefaultWriter", "TransformStream", "TransformStreamDefaultController"], default-features = false }
+web-sys = { version = "0.3", features = ["ReadableStream", "console", "WritableStream", "WritableStreamDefaultWriter", "TransformStream", "TransformStreamDefaultController"], default-features = false }
 wasm-bindgen = { version = "0.2.100", default-features = false, features = ["serde-serialize", "serde"] }
-wasm-bindgen-futures = { version = "0.4", default-features = false }
+wasm-bindgen-futures = { version = "0.4", features = ["futures-core-03-stream"], default-features = false }
 wasm-streams = { version = "0.4", default-features = false }
 pin-project = "1"
 serde = { version = "1", features = ["derive"] }

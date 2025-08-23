@@ -1,16 +1,19 @@
-use alloc::format;
 use crate::formats::SerdeFormat;
+use crate::maybe_send::MaybeSend;
 use crate::{ChannelBuilder, RpcError, RpcMsgHandler, RpcSchema, ServiceFactory, XyRpcChannel};
+use alloc::format;
 use alloc::string::{String, ToString};
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use futures_util::SinkExt;
+use futures_util::{SinkExt, Stream, StreamExt};
 use gloo_net::Error;
 use js_sys::Uint8Array;
 use pin_project::pin_project;
+use std::sync::{Arc, Mutex};
+use wasm_bindgen::__rt::IntoJsResult;
 use wasm_bindgen::JsValue;
+use wasm_bindgen::closure::Closure;
 use web_sys::{ReadableStream, WritableStream};
-use crate::maybe_send::MaybeSend;
 
 pub async fn get_http_stream_from_url(
     url: &str,
@@ -128,4 +131,73 @@ impl<T: futures_util::AsyncWrite> futures_util::AsyncWrite for ForceSend<T> {
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         self.project().0.poll_close(cx)
     }
+}
+
+pub fn stream_to_js_async_iterator(
+    stream: impl Stream<Item: Into<JsValue>> + Unpin + 'static,
+) -> JsValue {
+    use futures_util::StreamExt;
+    let symbol = js_sys::Symbol::async_iterator();
+    let object = js_sys::Object::new();
+    let mut stream = Arc::new(Mutex::new(stream));
+    let ff = Closure::<dyn Fn() -> js_sys::Promise>::new(move || {
+        let mut stream = stream.clone();
+        wasm_bindgen_futures::future_to_promise(async move {
+            let mut stream = stream.lock().unwrap();
+            let object = js_sys::Object::new();
+            if let Some(n) = stream.next().await {
+                js_sys::Reflect::set(&object, &"value".into(), &n.into())?;
+                js_sys::Reflect::set(&object, &"done".into(), &false.into())?;
+            } else {
+                js_sys::Reflect::set(&object, &"done".into(), &true.into())?;
+            }
+            Ok(object.into_js_result()?)
+        })
+    })
+    .into_js_value();
+    let rr = Closure::<dyn Fn() -> JsValue>::new(move || {
+        let object = js_sys::Object::new();
+        js_sys::Reflect::set(&object, &"next".into(), &ff).unwrap();
+        object.into_js_result().unwrap()
+    })
+    .into_js_value();
+    js_sys::Reflect::set(&object, &symbol, &rr).unwrap();
+    object.into_js_result().unwrap()
+}
+
+pub fn try_stream_to_js_async_iterator<
+    T: Into<JsValue> + 'static,
+    E: std::error::Error + 'static,
+>(
+    stream: impl Stream<Item = Result<T, E>> + 'static,
+) -> Result<JsValue, JsValue> {
+    use futures_util::StreamExt;
+    let symbol = js_sys::Symbol::async_iterator();
+    let object = js_sys::Object::new();
+    let mut stream = Arc::new(Mutex::new(stream.boxed_local()));
+    let ff = Closure::<dyn Fn() -> js_sys::Promise>::new(move || {
+        let mut stream = stream.clone();
+        wasm_bindgen_futures::future_to_promise(async move {
+            let mut stream = stream.lock().unwrap();
+            let object = js_sys::Object::new();
+            if let Some(n) = stream.next().await {
+                let n = n.map_err(|err| wasm_bindgen::JsValue::from(err.to_string()))?;
+                let n = n.into();
+                js_sys::Reflect::set(&object, &"value".into(), &n)?;
+                js_sys::Reflect::set(&object, &"done".into(), &false.into())?;
+            } else {
+                js_sys::Reflect::set(&object, &"done".into(), &true.into())?;
+            }
+            Ok(object.into_js_result()?)
+        })
+    })
+    .into_js_value();
+    let rr = Closure::<dyn Fn() -> JsValue>::new(move || {
+        let object = js_sys::Object::new();
+        js_sys::Reflect::set(&object, &"next".into(), &ff).unwrap();
+        object.into_js_result().unwrap()
+    })
+    .into_js_value();
+    js_sys::Reflect::set(&object, &symbol, &rr)?;
+    object.into_js_result()
 }
