@@ -33,26 +33,26 @@ tracing_live = ["dep:tracing-lv-track"]
 [dependencies]
 futures-util = { version = "0.3", features = ["sink", "io", "futures-macro", "async-await-macro"], default-features = false }
 serde = { version = "1", features = ["derive"] }
-flume = { version = "0.11", features = ["async"], default-features = false }
+flume = { version = "0.12", features = ["async"], default-features = false }
 futures-channel = { version = "0.3", features = ["alloc"], default-features = false }
 auto_enums = "0.8"
-derive_more = { version = "1", features = ["full"] }
+derive_more = { version = "2", features = ["full"] }
 bit_field = "0.10"
-bytes = { version = "1.10.0", features = ["serde"] }
+bytes = { version = "1.11", features = ["serde"] }
 xy-rpc-macro = { path = "crates/xy-rpc-macro", version = "0.2.0" }
 tracing = "0.1"
-portable-atomic = { version = "1.10" }
+portable-atomic = { version = "1.13" }
 pin-project = "1"
-compio = { version = "0.13", optional = true, features = ["io-compat"] }
+compio = { version = "0.18", optional = true, features = ["io-compat"] }
 try-specialize = { version = "0.1" }
-hashbrown = { version = "0.15" }
-modular-bitfield = { version = "0.11", features = [] }
+hashbrown = { version = "0.16" }
+modular-bitfield = { version = "0.13", features = [] }
 
 serde_json = { version = "1", features = ["std"], default-features = false, optional = true }
 tokio = { version = "1", features = ["net", "io-util"], default-features = false, optional = true }
 tokio-util = { version = "0.7", features = ["compat"], default-features = false, optional = true }
 axum = { version = "0.8", features = [], default-features = false, optional = true }
-dashmap = { version = "6.1", optional = true }
+dashmap = { version = "6", optional = true }
 rmp-serde = { version = "1.3", optional = true }
 tracing-lv-track = { path = "../tracing-live/libs/track", optional = true }
 #erased-serde = "0.4"
@@ -80,7 +80,7 @@ tokio = { version = "1", features = ["full"] }
 xy-rpc = { path = ".", features = ["rt_tokio_without_send_sync", "axum", "format_json", "format_message_pack", "duplex", "tracing_live"] }
 #tracing-lv = { path = "../tracing-live/libs/client" }
 tower-http = { version = "0.6", features = ["cors"] }
-compio = { version = "0.13", features = ["macros", "time"] }
+compio = { version = "0.18", features = ["macros", "time"] }
 bincode = { version = "1.3", features = [] }
 
 
@@ -109,9 +109,19 @@ required-features = ["rt_tokio"]
 [[example]]
 name = "compio_example"
 path = "examples/compio_example.rs"
-required-features = ["rt_compio"]
+required-features =  ["rt_compio"]
 
 [[example]]
 name = "axum"
 path = "examples/axum_example.rs"
 required-features = ["rt_tokio", "send_sync"]
+
+[[example]]
+name = "custom_serde_format"
+path = "examples/custom_serde_format.rs"
+required-features = ["rt_tokio"]
+
+[[example]]
+name = "stream_example"
+path = "examples/stream_example.rs"
+required-features = ["rt_tokio"]

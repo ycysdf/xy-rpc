@@ -6,12 +6,12 @@ use bytes::Bytes;
 use core::fmt::{Debug, Formatter};
 use futures_util::{AsyncReadExt, AsyncWriteExt};
 use modular_bitfield::prelude::{B4, B12, B32};
-use modular_bitfield::{BitfieldSpecifier, Specifier, bitfield};
+use modular_bitfield::{Specifier, bitfield};
 use serde::{Deserialize, Serialize};
 
 pub type RpcMsgSendId = u16;
 pub type RpcMsgKind = u16;
-#[derive(BitfieldSpecifier, Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
+#[derive(Specifier, Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
 #[bits = 2]
 #[repr(u8)]
 pub enum RpcStreamKind {
@@ -87,7 +87,7 @@ impl RpcFrame {
     }
 }
 
-#[derive(BitfieldSpecifier)]
+#[derive(Specifier)]
 #[bits = 4]
 pub enum RpcFrameKind {
     Msg,

@@ -5,16 +5,13 @@ use proc_macro2::{Ident, Span};
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{
-    Field, FieldMutability, Fields, FieldsNamed, FnArg, GenericArgument, GenericParam, Generics,
-    ItemStruct, ItemTrait, Lifetime, LifetimeParam, PatType, PathArguments, PathSegment,
-    ReturnType, Token, TraitItem, TraitItemFn, Type, TypeParamBound, TypeReference,
-    parse_macro_input, parse_quote,
-};
+use syn::{Field, FieldMutability, Fields, FieldsNamed, FnArg, GenericArgument, GenericParam, Generics, ItemStruct, ItemTrait, Lifetime, LifetimeParam, PatType, PathArguments, PathSegment, ReturnType, Token, TraitItem, TraitItemFn, Type, TypeParamBound, TypeReference, parse_macro_input, parse_quote, TraitBound};
 
 #[proc_macro_attribute]
 pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut ast = parse_macro_input!(item as ItemTrait);
+    ast.supertraits.push(TypeParamBound::Trait(parse_quote!(Send)));
+    ast.supertraits.push(TypeParamBound::Trait(parse_quote!(Sync)));
     let vis = ast.vis.clone();
     {
         for item in ast.items.iter_mut() {
