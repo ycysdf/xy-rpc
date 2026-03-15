@@ -11,10 +11,8 @@ use tracing::{Instrument, info, info_span, warn};
 use tracing_subscriber::filter::FilterExt;
 use tracing_subscriber::fmt::format::FmtSpan;
 use xy_rpc::TransStream;
-use xy_rpc::duplex::serve_duplex_from;
-use xy_rpc::formats::{JsonFormat, MessagePackFormat, SerdeFormat};
+use xy_rpc::formats::SerdeFormat;
 use xy_rpc::maybe_send::{MaybeSend, MaybeSync};
-use xy_rpc::tokio::{serve_duplex_from_tokio, serve_duplex_tokio};
 use xy_rpc::{RpcError, XyRpcChannel};
 use xy_rpc_macro::rpc_service;
 
@@ -76,11 +74,13 @@ async fn compio_futures() {
 }
 
 async fn test_all_format(run_way: RunAsyncWay) {
-    test_channel2(run_way, JsonFormat).await;
-    test_channel2(run_way, MessagePackFormat).await;
+    #[cfg(feature = "format_json")]
+    test_channel2(run_way, xy_rpc::formats::JsonFormat).await;
+    #[cfg(feature = "format_message_pack")]
+    test_channel2(run_way, xy_rpc::formats::MessagePackFormat).await;
 }
 
-async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
+async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) {
     #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
     enum TestEnum {
         A(u32),
@@ -262,7 +262,7 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
         format!("Item {}", i)
     }
     let gen_serve = move |name: String, count: u64| {
-        move |channel: XyRpcChannel<_, FooServiceSchema>| {
+        move |channel: XyRpcChannel<SF, FooServiceSchema>| {
             let name = name.clone();
             let span = info_span!("channel serve", name);
             async move {
@@ -368,7 +368,7 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
                     }
                     assert_eq!(i, count);
                 }
-                Ok(())
+                Ok::<(), RpcError>(())
             }
             .instrument(span)
         }
@@ -380,7 +380,8 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
     // let serve2 = |_| async move { Ok(()) };
     match run_way {
         RunAsyncWay::Futures => {
-            serve_duplex_from(
+            #[cfg(feature = "duplex")]
+            xy_rpc::duplex::serve_duplex_from(
                 {
                     #[cfg(feature = "rt_compio")]
                     {
@@ -399,7 +400,7 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
                             },
                         )
                     }
-                    #[cfg(not(feature = "rt_compio"))]
+                    #[cfg(feature = "rt_tokio_without_send_sync")]
                     {
                         use tokio_util::compat::{
                             TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt,
@@ -438,7 +439,9 @@ async fn test_channel2(run_way: RunAsyncWay, serde_format: impl SerdeFormat) {
         }
         RunAsyncWay::Tokio => {
             let (peer1, peer2) = get_tokio_net_duplex().await;
-            serve_duplex_from_tokio(
+
+            #[cfg(feature = "rt_tokio_without_send_sync")]
+            xy_rpc::tokio::serve_duplex_from_tokio(
                 (peer1.into_split(), peer2.into_split()),
                 serde_format,
                 (
@@ -529,7 +532,7 @@ async fn get_tokio_net_duplex() -> (tokio::net::TcpStream, tokio::net::TcpStream
 }
 
 async fn sleep_some() {
-    #[cfg(not(feature = "rt_compio"))]
+    #[cfg(feature = "rt_tokio_without_send_sync")]
     tokio::time::sleep(std::time::Duration::from_millis(1)).await;
     #[cfg(feature = "rt_compio")]
     compio::time::sleep(std::time::Duration::from_millis(1)).await;

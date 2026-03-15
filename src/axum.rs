@@ -73,7 +73,7 @@ where
     }
 }
 
-pub const XY_RPC_HEADER_KEY_STREAM_ID: &'static str = "stream_id";
+pub const XY_RPC_HEADER_KEY_STREAM_ID: &str = "stream_id";
 
 impl<SF, F, CS, S, T> Service<Request> for XyWebRpcService<SF, F, CS, S, T>
 where

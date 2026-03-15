@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "crates/xy-rpc-macro",
-    "examples/wasm_play"
+    #    "examples/wasm_play"
+    #    "examples/*"
 ]
 
 [package]
@@ -16,12 +17,13 @@ repository = "https://github.com/ycysdf/xy-rpc"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["std"]
+default = ["std", "format_json"]
 std = []
 rt_tokio_without_send_sync = ["std", "dep:tokio", "dep:tokio-util"]
 rt_tokio = ["rt_tokio_without_send_sync", "send_sync"]
+axum = ["rt_tokio_without_send_sync", "dep:axum", "dashmap"]
+
 rt_compio = ["std", "dep:compio"]
-axum = ["std", "dep:axum", "dashmap"]
 format_json = ["dep:serde_json"]
 format_message_pack = ["dep:rmp-serde"]
 duplex = ["rt_tokio_without_send_sync"]
@@ -43,7 +45,7 @@ xy-rpc-macro = { path = "crates/xy-rpc-macro", version = "0.2.0" }
 tracing = "0.1"
 portable-atomic = { version = "1.13" }
 pin-project = "1"
-compio = { version = "0.18", optional = true, features = ["io-compat"] }
+compio = { version = "0.18", optional = true, default-features = false, features = ["io-compat", "net"] }
 try-specialize = { version = "0.1" }
 hashbrown = { version = "0.16" }
 modular-bitfield = { version = "0.13", features = [] }
@@ -72,13 +74,13 @@ wasm-streams = { version = "0.4", default-features = false }
 pin-project = "1"
 
 [dev-dependencies]
-tsify = { version = "0.5" }
+#tsify = { version = "0.5" }
 dashmap = "6.1"
 axum = { version = "0.8", features = [] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio-util = { version = "0.7", features = ["io"], default-features = false }
 tokio = { version = "1", features = ["full"] }
-xy-rpc = { path = ".", features = ["rt_tokio_without_send_sync", "axum", "format_json", "format_message_pack", "duplex", "tracing_live"] }
+#xy-rpc = { path = ".", features = ["rt_tokio_without_send_sync", "axum", "format_json", "format_message_pack", "duplex", "tracing_live"] }
 #tracing-lv = { path = "../tracing-live/libs/client" }
 tower-http = { version = "0.6", features = ["cors"] }
 compio = { version = "0.18", features = ["macros", "time"] }
@@ -88,41 +90,41 @@ bincode = { version = "1.3", features = [] }
 [[example]]
 name = "unidirectional_rpc_exmaple_caller"
 path = "examples/unidirectional_rpc_example/caller.rs"
-required-features = ["rt_tokio"]
+required-features = ["rt_tokio", "format_json"]
 
 [[example]]
 name = "unidirectional_rpc_exmaple_service"
 path = "examples/unidirectional_rpc_example/service.rs"
-required-features = ["rt_tokio"]
+required-features = ["rt_tokio", "format_json"]
 
 
 [[example]]
 name = "bidirectional_rpc_exmaple_connector"
 path = "examples/bidirectional_rpc_example/connector.rs"
-required-features = ["rt_tokio"]
+required-features = ["rt_tokio", "format_json"]
 
 
 [[example]]
 name = "bidirectional_rpc_exmaple_acceptor"
 path = "examples/bidirectional_rpc_example/acceptor.rs"
-required-features = ["rt_tokio"]
+required-features = ["rt_tokio", "format_json"]
 
 [[example]]
 name = "compio_example"
 path = "examples/compio_example.rs"
-required-features =  ["rt_compio"]
+required-features = ["rt_compio"]
 
 [[example]]
 name = "axum"
 path = "examples/axum_example.rs"
-required-features = ["rt_tokio", "send_sync"]
+required-features = ["rt_tokio", "format_json", "axum", "send_sync"]
 
 [[example]]
 name = "custom_serde_format"
 path = "examples/custom_serde_format.rs"
-required-features = ["rt_tokio"]
+required-features = ["rt_tokio", "format_json", "duplex"]
 
 [[example]]
 name = "stream_example"
 path = "examples/stream_example.rs"
-required-features = ["rt_tokio"]
+required-features = ["rt_tokio", "format_json", "duplex"]
