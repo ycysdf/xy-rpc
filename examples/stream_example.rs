@@ -111,13 +111,13 @@ impl ServerService for TestServerService {
 }
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    tracing_subscriber::fmt()
-        // Configure formatting settings.
-        .with_target(false)
-        .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_level(true)
-        // Set the subscriber as the default.
-        .init();
+    // tracing_subscriber::fmt()
+    //     // Configure formatting settings.
+    //     .with_target(false)
+    //     .with_timer(tracing_subscriber::fmt::time::uptime())
+    //     .with_level(true)
+    //     // Set the subscriber as the default.
+    //     .init();
     serve_duplex_tokio(
         JsonFormat,
         (

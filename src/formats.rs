@@ -5,7 +5,7 @@ use core::mem::ManuallyDrop;
 use serde::{Deserialize, Serialize};
 use try_specialize::TrySpecialize;
 
-pub trait SerdeFormat: MaybeSend + MaybeSync + Clone + 'static {
+pub trait SerdeFormat: Send + Sync + Clone + 'static {
     fn serialize_to_buf<T>(&self, writer: &mut BytesMut, value: &T) -> Result<(), AnyError>
     where
         T: ?Sized + Serialize;

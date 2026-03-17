@@ -1,16 +1,12 @@
 use axum::Router;
 use axum::routing::get;
 use core::future::Future;
-use core::time::Duration;
 use futures_util::{FutureExt, StreamExt};
 use std::net::{Ipv4Addr, SocketAddr};
-use tokio::{select, try_join};
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, AllowPrivateNetwork, CorsLayer};
 use xy_rpc::XyRpcChannel;
 use xy_rpc::axum::XyWebRpcService;
 use xy_rpc::formats::JsonFormat;
-use xy_rpc::tokio::serve_duplex_tokio;
-use xy_rpc_macro::rpc_service;
 
 #[path = "wasm_play/src/lib.rs"]
 mod proto;
@@ -24,7 +20,7 @@ pub async fn main() {
                 .unwrap();
 
         let (service, channel_receiver) = XyWebRpcService::new(
-            |req, channel: XyRpcChannel<JsonFormat, ()>| proto::TestService,
+            |_req, _channel: XyRpcChannel<JsonFormat, ()>| proto::TestService,
             JsonFormat,
         );
         tokio::spawn(async move {

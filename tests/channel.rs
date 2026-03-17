@@ -5,10 +5,7 @@ use core::net::{IpAddr, Ipv4Addr, SocketAddr};
 use futures_util::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::Duration;
-use tokio::task::yield_now;
-use tracing::{Instrument, info, info_span, warn};
-use tracing_subscriber::filter::FilterExt;
+use tracing::{Instrument, info_span, warn};
 use tracing_subscriber::fmt::format::FmtSpan;
 use xy_rpc::TransStream;
 use xy_rpc::formats::SerdeFormat;
@@ -25,39 +22,39 @@ async fn tokio_single_thread() {
 #[cfg(feature = "rt_tokio")]
 #[tokio::test]
 async fn tokio_single_thread_futures() {
-    tracing_subscriber::fmt()
-        .pretty()
-        .with_target(false)
-        .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_level(true)
-        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
-        .init();
+    // tracing_subscriber::fmt()
+    //     .pretty()
+    //     .with_target(false)
+    //     .with_timer(tracing_subscriber::fmt::time::uptime())
+    //     .with_level(true)
+    //     .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+    //     .init();
     test_all_format(RunAsyncWay::Futures).await;
 }
 
 #[cfg(feature = "rt_tokio")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn tokio_multi_thread() {
-    tracing_subscriber::fmt()
-        .pretty()
-        .with_target(false)
-        .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_level(true)
-        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
-        .init();
+    // tracing_subscriber::fmt()
+    //     .pretty()
+    //     .with_target(false)
+    //     .with_timer(tracing_subscriber::fmt::time::uptime())
+    //     .with_level(true)
+    //     .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+    //     .init();
     test_all_format(RunAsyncWay::Tokio).await;
 }
 
 #[cfg(feature = "rt_tokio")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn tokio_multi_thread_features() {
-    tracing_subscriber::fmt()
-        .pretty()
-        .with_target(false)
-        .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_level(true)
-        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
-        .init();
+    // tracing_subscriber::fmt()
+    //     .pretty()
+    //     .with_target(false)
+    //     .with_timer(tracing_subscriber::fmt::time::uptime())
+    //     .with_level(true)
+    //     .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+    //     .init();
     test_all_format(RunAsyncWay::Futures).await;
 }
 
@@ -284,8 +281,7 @@ async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) 
 
                     sleep_some().await;
                     Some((Ok(get_tests_string_item(state as _)), state + 1))
-                })
-                .boxed();
+                });
                 let _r = channel.msg_streaming(stream).await?;
                 assert_eq!(_r, count);
 
@@ -329,9 +325,9 @@ async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) 
 
                         sleep_some().await;
                         Some((Ok(get_tests_string_item(state as _)), state + 1))
-                    })
-                    .boxed();
+                    });
                     let mut stream = channel.bidirectional_streaming(&count, stream).await?;
+                    let mut stream = std::pin::pin!(stream);
                     let mut i = 0;
                     while let Some(n) = stream.next().await {
                         let item = n.unwrap();
@@ -353,10 +349,10 @@ async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) 
                             )),
                             state + 1,
                         ))
-                    })
-                    .boxed();
-                    let mut stream = channel.bidirectional_streaming2(&count, stream).await?;
+                    });
+                    let stream = channel.bidirectional_streaming2(&count, stream).await?;
 
+                    let mut stream = std::pin::pin!(stream);
                     let mut i = 0;
                     while let Some(n) = stream.next().await {
                         let item = n.unwrap();

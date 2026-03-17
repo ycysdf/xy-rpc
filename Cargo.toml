@@ -21,7 +21,7 @@ default = ["std", "format_json"]
 std = []
 rt_tokio_without_send_sync = ["std", "dep:tokio", "dep:tokio-util"]
 rt_tokio = ["rt_tokio_without_send_sync", "send_sync"]
-axum = ["rt_tokio_without_send_sync", "dep:axum", "dashmap"]
+axum = ["rt_tokio", "dep:axum", "dashmap"]
 
 rt_compio = ["std", "dep:compio"]
 format_json = ["dep:serde_json"]
