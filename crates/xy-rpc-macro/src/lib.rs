@@ -5,13 +5,20 @@ use proc_macro2::{Ident, Span};
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{Field, FieldMutability, Fields, FieldsNamed, FnArg, GenericArgument, GenericParam, Generics, ItemStruct, ItemTrait, Lifetime, LifetimeParam, PatType, PathArguments, PathSegment, ReturnType, Token, TraitItem, TraitItemFn, Type, TypeParamBound, TypeReference, parse_macro_input, parse_quote, TraitBound};
+use syn::{
+    Field, FieldMutability, Fields, FieldsNamed, FnArg, GenericArgument, GenericParam, Generics,
+    ItemStruct, ItemTrait, Lifetime, LifetimeParam, PatType, PathArguments, PathSegment,
+    ReturnType, Token, TraitItem, TraitItemFn, Type, TypeParamBound, TypeReference,
+    parse_macro_input, parse_quote,
+};
 
 #[proc_macro_attribute]
 pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut ast = parse_macro_input!(item as ItemTrait);
-    ast.supertraits.push(TypeParamBound::Trait(parse_quote!(Send)));
-    ast.supertraits.push(TypeParamBound::Trait(parse_quote!(Sync)));
+    ast.supertraits
+        .push(TypeParamBound::Trait(parse_quote!(Send)));
+    ast.supertraits
+        .push(TypeParamBound::Trait(parse_quote!(Sync)));
     let vis = ast.vis.clone();
     {
         for item in ast.items.iter_mut() {
@@ -221,10 +228,10 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
             };
             if segment.ident == "TransStream" {
                 let PathArguments::AngleBracketed(args) = &segment.arguments else {
-                    unreachable!("Stream Type invalid. {:?}", segment.arguments)
+                    unreachable!("Stream Type invalid")
                 };
                 let GenericArgument::Type(item_type) = args.args.iter().next().unwrap() else {
-                    unreachable!("Stream Item Type invalid. {:?}", args.args)
+                    unreachable!("Stream Item Type invalid")
                 };
                 let param_type_ident = format_ident!("{}{}{i}ParamTy",ast.ident,trait_item_fn.sig.ident.to_string().to_case(Case::UpperCamel));
                 wasm_extra.push(quote! {
@@ -640,10 +647,10 @@ fn get_input_trans_stream(n: &TraitItemFn) -> Option<(&PatType, &PathSegment, &T
         let segment = ty.path.segments.last()?;
         (segment.ident == "TransStream").then(|| {
             let PathArguments::AngleBracketed(args) = &segment.arguments else {
-                unreachable!("Stream Type invalid. {:?}", segment.arguments)
+                unreachable!("Stream Type invalid")
             };
             let GenericArgument::Type(item_type) = args.args.iter().next().unwrap() else {
-                unreachable!("Stream Item Type invalid. {:?}", args.args)
+                unreachable!("Stream Item Type invalid")
             };
             (pat_ty, segment, item_type, i)
         })
