@@ -10,7 +10,7 @@ struct ComplexObj {
 struct Test2Service;
 
 #[rpc_service]
-trait RpcTest2Service: MaybeSend + MaybeSync {
+trait RpcTest2Service {
     fn hello(&self, x: u32) -> impl Future<Output = u32> + MaybeSend;
 }
 impl RpcTest2Service for Test2Service {
@@ -25,7 +25,7 @@ impl RpcTest2Service for Test2Service {
 struct TestService;
 
 #[rpc_service]
-trait RpcTestService: MaybeSend + MaybeSync {
+trait RpcTestService {
     fn a(&self, x: u32) -> impl Future<Output = u32> + MaybeSend;
     fn b(&self, p1: u32, p2: String, p3: bool) -> impl Future<Output = u32> + MaybeSend;
     fn c(&self, x: ComplexObj) -> impl Future<Output = String> + MaybeSend;

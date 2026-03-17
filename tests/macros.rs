@@ -10,7 +10,7 @@ use xy_rpc_macro::rpc_service;
 #[test]
 fn rpc_service_test() {
     #[rpc_service]
-    trait TestService: MaybeSend + MaybeSync {
+    trait TestService {
         async fn empty(&self);
         async fn with_args(&self, a: bool, b: u32, c: String, d: (), e: String);
         async fn with_return(&self) -> String;
@@ -42,7 +42,7 @@ fn rpc_service_test() {
         }
     }
     #[rpc_service]
-    trait FutureTestService: Send + Sync {
+    trait FutureTestService {
         fn with_future(&self) -> impl Future<Output = ()>;
         fn with_future2(&self, arg: String) -> impl Future<Output = String>;
         fn with_custom_future2(&self, arg: String) -> CustomFuture;
@@ -52,7 +52,7 @@ fn rpc_service_test() {
     struct Foo {}
 
     #[rpc_service]
-    trait SerdeTestService: Send + Sync {
+    trait SerdeTestService {
         async fn abc(&self, a: Foo) -> Foo;
     }
 }

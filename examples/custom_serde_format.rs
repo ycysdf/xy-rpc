@@ -20,13 +20,13 @@ struct ComplexObj {
 }
 
 #[rpc_service]
-trait ClientService: Send + Sync {
+trait ClientService {
     async fn hello1(&self, content: ComplexObj) -> ComplexObj;
     async fn nothing(&self);
 }
 
 #[rpc_service]
-trait ServerService: Send + Sync {
+trait ServerService {
     async fn hello2(&self, content: ComplexObj) -> ComplexObj;
 }
 

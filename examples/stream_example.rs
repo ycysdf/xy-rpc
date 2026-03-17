@@ -21,7 +21,7 @@ struct ComplexObj {
 }
 
 #[rpc_service]
-pub trait ClientService: Send + Sync {
+pub trait ClientService {
     async fn hello1(
         &self,
         content: ComplexObj,
@@ -31,7 +31,7 @@ pub trait ClientService: Send + Sync {
 }
 
 #[rpc_service]
-trait ServerService: Send + Sync {
+trait ServerService {
     async fn hello2(&self, content: ComplexObj) -> ComplexObj;
     async fn msg_streaming(&self, stream: TransStream<String, impl SerdeFormat>);
     async fn msg_streaming2(&self, foo: f32, stream: TransStream<String, impl SerdeFormat>);

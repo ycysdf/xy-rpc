@@ -132,7 +132,7 @@ async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) 
     }
 
     #[rpc_service]
-    trait FooService: MaybeSend + MaybeSync {
+    trait FooService {
         async fn unary(&self, index: u64, arg1: TestStruct) -> TestStruct;
         async fn msg_streaming(&self, stream: TransStream<String, impl SerdeFormat>) -> u64;
         async fn msg_streaming2(

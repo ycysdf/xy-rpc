@@ -8,7 +8,7 @@ use xy_rpc::maybe_send::{MaybeSend, MaybeSync};
 use xy_rpc::{ChannelBuilder, RpcError, TransStream, formats::SerdeFormat, rpc_service};
 
 #[rpc_service]
-pub trait RpcTest2Service: MaybeSend + MaybeSync {
+pub trait RpcTest2Service {
     fn hello(&self, x: u32) -> impl Future<Output = u32> + MaybeSend;
 }
 
@@ -80,7 +80,7 @@ impl TestStruct {
 }
 
 #[rpc_service]
-pub trait RpcTestService: MaybeSend + MaybeSync {
+pub trait RpcTestService {
     async fn msg_streaming(&self, stream: TransStream<String, impl SerdeFormat>);
     async fn reply_streaming(
         &self,
