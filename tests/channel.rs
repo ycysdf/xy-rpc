@@ -5,11 +5,10 @@ use core::net::{IpAddr, Ipv4Addr, SocketAddr};
 use futures_util::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{Instrument, info_span, warn};
-use tracing_subscriber::fmt::format::FmtSpan;
+use tracing::{Instrument, info_span};
 use xy_rpc::TransStream;
 use xy_rpc::formats::SerdeFormat;
-use xy_rpc::maybe_send::{MaybeSend, MaybeSync};
+use xy_rpc::maybe_send::MaybeSend;
 use xy_rpc::{RpcError, XyRpcChannel};
 use xy_rpc_macro::rpc_service;
 
@@ -161,9 +160,9 @@ async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) 
         async fn bytes(&self, a: Bytes) -> Bytes;
     }
     struct FooServiceImpl {
-        name: String,
+        _name: String,
         count: u64,
-    };
+    }
     impl FooService for FooServiceImpl {
         fn unary(
             &self,
@@ -326,7 +325,7 @@ async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) 
                         sleep_some().await;
                         Some((Ok(get_tests_string_item(state as _)), state + 1))
                     });
-                    let mut stream = channel.bidirectional_streaming(&count, stream).await?;
+                    let stream = channel.bidirectional_streaming(&count, stream).await?;
                     let mut stream = std::pin::pin!(stream);
                     let mut i = 0;
                     while let Some(n) = stream.next().await {
@@ -417,14 +416,14 @@ async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) 
                 serde_format,
                 (
                     |_| FooServiceImpl {
-                        name: "Futures".into(),
+                        _name: "Futures".into(),
                         count: count1,
                     },
                     serve1,
                 ),
                 (
                     |_| FooServiceImpl {
-                        name: "Futures".into(),
+                        _name: "Futures".into(),
                         count: count2,
                     },
                     serve2,
@@ -442,14 +441,14 @@ async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) 
                 serde_format,
                 (
                     |_| FooServiceImpl {
-                        name: "Tokio".into(),
+                        _name: "Tokio".into(),
                         count: count1,
                     },
                     serve1,
                 ),
                 (
                     |_| FooServiceImpl {
-                        name: "Tokio".into(),
+                        _name: "Tokio".into(),
                         count: count2,
                     },
                     serve2,
@@ -467,14 +466,14 @@ async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) 
                     serde_format,
                     (
                         |_| FooServiceImpl {
-                            name: "Compio".into(),
+                            _name: "Compio".into(),
                             count: count1,
                         },
                         serve1,
                     ),
                     (
                         |_| FooServiceImpl {
-                            name: "Compio".into(),
+                            _name: "Compio".into(),
                             count: count2,
                         },
                         serve2,
@@ -487,6 +486,7 @@ async fn test_channel2<SF: SerdeFormat>(run_way: RunAsyncWay, serde_format: SF) 
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 enum RunAsyncWay {
     Futures,

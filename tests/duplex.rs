@@ -38,7 +38,7 @@ impl RpcTestService for TestService {
         }
     }
 
-    fn b(&self, p1: u32, p2: String, p3: bool) -> impl Future<Output = u32> + Send {
+    fn b(&self, p1: u32, _p2: String, _p3: bool) -> impl Future<Output = u32> + Send {
         async move { p1 }
     }
 

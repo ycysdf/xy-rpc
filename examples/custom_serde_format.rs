@@ -1,11 +1,9 @@
 use bytes::{BufMut, BytesMut};
-use core::net::{IpAddr, Ipv4Addr, SocketAddr};
 use serde::{Deserialize, Serialize};
-use std::io::Write;
 use tracing::info;
 use xy_rpc::formats::{JsonFormat, SerdeFormat};
 use xy_rpc::maybe_send::{AnyError, MaybeSend};
-use xy_rpc::tokio::{serve_duplex_from_tokio, serve_duplex_tokio};
+use xy_rpc::tokio::serve_duplex_tokio;
 use xy_rpc_macro::rpc_service;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +53,7 @@ impl ServerService for TestServerService {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 struct MySerdeFormat;
 

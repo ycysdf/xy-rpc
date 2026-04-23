@@ -1,9 +1,9 @@
-use futures_util::{AsyncRead, Stream};
+use futures_util::Stream;
 use serde::{Deserialize, Serialize};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use xy_rpc::formats::SerdeFormat;
-use xy_rpc::maybe_send::{MaybeSend, MaybeSync};
+use xy_rpc::maybe_send::MaybeSend;
 use xy_rpc::{RpcError, TransStream};
 use xy_rpc_macro::rpc_service;
 

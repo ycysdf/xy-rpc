@@ -1,16 +1,15 @@
-use futures_util::{Stream, StreamExt, TryStreamExt};
+use futures_util::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
-use std::io::Write;
 use core::pin::pin;
 use tracing::info;
 use xy_rpc::formats::{JsonFormat, SerdeFormat};
 use xy_rpc::maybe_send::MaybeSend;
-use xy_rpc::tokio::{serve_duplex_from_tokio, serve_duplex_tokio};
+use xy_rpc::tokio::serve_duplex_tokio;
 use xy_rpc::{RpcError, TransStream};
 use xy_rpc_macro::rpc_service;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct ComplexObj {
+pub struct ComplexObj {
     a: String,
     b: u32,
     c: bool,
@@ -40,7 +39,7 @@ trait ServerService {
     ) -> impl Stream<Item = Result<bool, RpcError>> + MaybeSend + 'static;
     async fn reply_streaming2(
         &self,
-        foo: f32,
+        _foo: f32,
     ) -> impl Stream<Item = Result<bool, RpcError>> + MaybeSend + 'static;
 }
 
@@ -88,7 +87,7 @@ impl ServerService for TestServerService {
 
     fn msg_streaming2(
         &self,
-        foo: f32,
+        _foo: f32,
         _: TransStream<String, impl SerdeFormat>,
     ) -> impl Future<Output = ()> + MaybeSend {
         async move { todo!() }
@@ -103,7 +102,7 @@ impl ServerService for TestServerService {
 
     fn reply_streaming2(
         &self,
-        foo: f32,
+        _foo: f32,
     ) -> impl Future<Output = impl Stream<Item = Result<bool, RpcError>> + MaybeSend + 'static> + MaybeSend
     {
         async move { futures_util::stream::once(async move { todo!() }) }

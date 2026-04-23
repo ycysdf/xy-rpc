@@ -38,7 +38,7 @@ impl RpcTestService for TestService {
         }
     }
 
-    fn b(&self, p1: u32, p2: String, p3: bool) -> impl Future<Output = u32> + MaybeSend {
+    fn b(&self, p1: u32, _p2: String, _p3: bool) -> impl Future<Output = u32> + MaybeSend {
         async move { p1 }
     }
 
@@ -51,7 +51,7 @@ use core::time::Duration;
 use serde::{Deserialize, Serialize};
 use tokio::try_join;
 use xy_rpc::formats::JsonFormat;
-use xy_rpc::maybe_send::{MaybeSend, MaybeSync};
+use xy_rpc::maybe_send::MaybeSend;
 use xy_rpc_macro::rpc_service;
 
 #[tokio::test]
