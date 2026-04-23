@@ -235,6 +235,7 @@ impl<
                 move |stream| SendRpcMsgAll {
                     stream,
                     cancel_on_drop: None,
+                    // TODO: 这是个 BUG, 应该启用 SendCancelOnDrop，但是启用后会出现问题
                     // cancel_on_drop: Some(SendCancelOnDrop {
                     //     msg_sender: msg_sender.clone(),
                     //     op_id,
