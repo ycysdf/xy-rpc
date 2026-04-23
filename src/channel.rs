@@ -61,15 +61,6 @@ pub enum RpcError {
     },
 }
 
-impl RpcError {
-    pub fn is_serve_aborted(&self) -> bool {
-        matches!(
-            self,
-            RpcError::RecvCallReplyCancelled | RpcError::CallSendError { .. }
-        )
-    }
-}
-
 pub enum InnerMsg {
     Call {
         op_id: RpcOpId,
