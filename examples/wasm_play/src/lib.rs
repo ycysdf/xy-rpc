@@ -177,9 +177,3 @@ pub fn debug() {
         hook(panic_info)
     }));
 }
-
-fn ff() {
-    // web_sys::console::log_2()
-    // let value = wasm_bindgen::JsValue::null();
-    // value.into_serde()
-}

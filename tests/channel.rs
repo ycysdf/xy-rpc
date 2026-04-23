@@ -1,5 +1,5 @@
+#![allow(dead_code)]
 #[allow(unused_imports)]
-#[allow(dead_code)]
 use bytes::{Buf, Bytes};
 use core::net::{IpAddr, Ipv4Addr, SocketAddr};
 use futures_util::{Stream, StreamExt};

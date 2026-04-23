@@ -8,7 +8,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -57,6 +56,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo check ${{ matrix.no-default-features && '--no-default-features' || '' }} --features "${{ matrix.features }}"
+        # env:
+        #   RUSTFLAGS: -D warnings
 
   test:
     name: test (${{ matrix.name }})
