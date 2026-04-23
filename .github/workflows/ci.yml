@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            features: ""
+          - name: no-std
+            no-default-features: true
+            features: ""
+          - name: no-std-send-sync
+            no-default-features: true
+            features: send_sync
+          - name: tokio
+            features: rt_tokio,format_json
+          - name: tokio-no-send
+            features: rt_tokio_without_send_sync,format_json
+          - name: tokio-duplex
+            features: rt_tokio,duplex,format_json
+          - name: tokio-stream
+            features: rt_tokio,stream,format_json
+          - name: axum
+            features: axum,format_json
+          - name: compio
+            features: rt_compio,format_json
+          - name: tokio-message-pack
+            features: rt_tokio,format_message_pack
+          - name: tokio-duplex-message-pack
+            features: rt_tokio,duplex,format_message_pack
+          - name: tokio-stream-message-pack
+            features: rt_tokio,stream,format_message_pack
+          - name: axum-message-pack
+            features: axum,format_message_pack
+          - name: compio-message-pack
+            features: rt_compio,format_message_pack
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check ${{ matrix.no-default-features && '--no-default-features' || '' }} --features "${{ matrix.features }}"
+
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: tokio-json
+            features: rt_tokio,format_json
+          - name: tokio-no-send
+            features: rt_tokio_without_send_sync,format_json
+          - name: tokio-duplex-json
+            features: rt_tokio,duplex,format_json
+          - name: axum-json
+            features: axum,format_json
+          - name: tokio-stream-json
+            features: rt_tokio,stream,format_json
+          - name: compio-json
+            features: rt_compio,format_json
+          - name: tokio-message-pack
+            features: rt_tokio,format_message_pack
+          - name: tokio-duplex-message-pack
+            features: rt_tokio,duplex,format_message_pack
+          - name: tokio-stream-message-pack
+            features: rt_tokio,stream,format_message_pack
+          - name: axum-message-pack
+            features: axum,format_message_pack
+          - name: compio-message-pack
+            features: rt_compio,format_message_pack
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --features "${{ matrix.features }}"
+
+  web:
+    name: web (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: json
+            features: format_json
+          - name: json-send-sync
+            features: format_json,send_sync
+          - name: message-pack
+            features: format_message_pack
+          - name: no-std
+            no-default-features: true
+            features: send_sync
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --target wasm32-unknown-unknown ${{ matrix.no-default-features && '--no-default-features' || '' }} --features "${{ matrix.features }}"
+
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --features "rt_tokio,format_json,axum,duplex,stream,send_sync" -- -D warnings
