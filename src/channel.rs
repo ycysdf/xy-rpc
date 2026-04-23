@@ -303,7 +303,7 @@ impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
                                     if let Some(payload) = item {
                                         RpcFrame::call(op_id, RpcStreamKind::StreamItem, payload)
                                     } else {
-                                        RpcFrame::stream_end(op_id)
+                                        RpcFrame::call(op_id, RpcStreamKind::StreamEnd, Default::default())
                                     }
                                 }
                                 InnerMsg::Cancel(op_id) => RpcFrame::cancel(op_id),
