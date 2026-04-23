@@ -108,12 +108,12 @@ impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
     where
         XyRpcChannel<SF, CS>: Clone,
     {
-        #[cfg(feature = "tracing_live")]
-        use tracing_lv_track::{TLSinkInstrumentExt, TLStreamInstrumentExt};
-        #[cfg(feature = "tracing_live")]
-        let mut transport_sink = transport_sink.instrument_sink("transport sink");
-        #[cfg(feature = "tracing_live")]
-        let mut transport_stream = transport_stream.instrument_stream("transport stream");
+        // #[cfg(feature = "tracing_live")]
+        // use tracing_lv_track::{TLSinkInstrumentExt, TLStreamInstrumentExt};
+        // #[cfg(feature = "tracing_live")]
+        // let mut transport_sink = transport_sink.instrument_sink("transport sink");
+        // #[cfg(feature = "tracing_live")]
+        // let mut transport_stream = transport_stream.instrument_stream("transport stream");
         let (msg_sender, msg_receiver) = flume::unbounded();
         let channel = Self {
             sender_id_atomic: Arc::new(portable_atomic::AtomicU16::new(1)),
