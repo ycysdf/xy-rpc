@@ -1,6 +1,11 @@
-use bytes::{Bytes, BytesMut};
+#[cfg(feature = "std")]
+use bytes::Bytes;
+use bytes::BytesMut;
+#[cfg(feature = "std")]
 use core::pin::Pin;
+#[cfg(feature = "std")]
 use core::task::{Context, Poll};
+#[cfg(feature = "std")]
 use futures_util::stream::Stream;
 use pin_project::pin_project;
 

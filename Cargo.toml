@@ -88,24 +88,24 @@ bincode = { version = "1.3", features = [] }
 
 
 [[example]]
-name = "unidirectional_rpc_exmaple_caller"
+name = "unidirectional_rpc_example_caller"
 path = "examples/unidirectional_rpc_example/caller.rs"
 required-features = ["rt_tokio", "format_json"]
 
 [[example]]
-name = "unidirectional_rpc_exmaple_service"
+name = "unidirectional_rpc_example_service"
 path = "examples/unidirectional_rpc_example/service.rs"
 required-features = ["rt_tokio", "format_json"]
 
 
 [[example]]
-name = "bidirectional_rpc_exmaple_connector"
+name = "bidirectional_rpc_example_connector"
 path = "examples/bidirectional_rpc_example/connector.rs"
 required-features = ["rt_tokio", "format_json"]
 
 
 [[example]]
-name = "bidirectional_rpc_exmaple_acceptor"
+name = "bidirectional_rpc_example_acceptor"
 path = "examples/bidirectional_rpc_example/acceptor.rs"
 required-features = ["rt_tokio", "format_json"]
 

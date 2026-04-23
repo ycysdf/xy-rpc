@@ -1,9 +1,12 @@
 #![allow(non_snake_case)]
-use crate::{RpcError, RpcOpId};
+use crate::RpcOpId;
+#[cfg(feature = "std")]
+use crate::RpcError;
 use alloc::string::String;
 use bit_field::BitArray;
 use bytes::Bytes;
 use core::fmt::{Debug, Formatter};
+#[cfg(feature = "std")]
 use futures_util::{AsyncReadExt, AsyncWriteExt};
 use modular_bitfield::prelude::{B4, B12, B32};
 use modular_bitfield::{Specifier, bitfield};

@@ -7,7 +7,7 @@ use core::marker::PhantomData;
 use core::pin::Pin;
 use core::task::{Context, Poll, ready};
 use flume::Sender;
-use futures_util::{FutureExt, Stream, StreamExt};
+use futures_util::{FutureExt, Stream};
 use pin_project::pin_project;
 use serde::Serialize;
 use serde::de::DeserializeOwned;

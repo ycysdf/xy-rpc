@@ -18,12 +18,12 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use derive_more::{Display, Error, From};
 use futures_util::stream::FuturesUnordered;
-use futures_util::{FutureExt, SinkExt, Stream, StreamExt, TryStream, TryStreamExt};
+use futures_util::{FutureExt, SinkExt, Stream, StreamExt, TryStreamExt};
 use hashbrown::HashMap;
 use pin_project::pin_project;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use tracing::{info, warn};
+use tracing::warn;
 use try_specialize::TrySpecialize;
 
 #[derive(Clone, Hash, Eq, PartialEq, Debug, Copy, Display)]
@@ -312,7 +312,7 @@ impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
                                     stream,
                                     reply_sender,
                                 } => {
-                                    if let Some(r) = calls.insert(op_id, reply_sender) {
+                                    if let Some(_reply_sender) = calls.insert(op_id, reply_sender) {
                                         warn!(?op_id, "call conflict");
                                     }
                                     RpcFrame {

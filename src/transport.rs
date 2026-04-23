@@ -1,8 +1,7 @@
 use crate::RpcError;
 use crate::frame::RpcFrame;
-use crate::maybe_send::{MaybeSend, MaybeSync};
-use core::fmt::Debug;
-use futures_util::{Sink, Stream, TryStream};
+use crate::maybe_send::MaybeSend;
+use futures_util::{Sink, Stream};
 
 pub trait RpcTransportStream:
     Stream<Item = Result<RpcFrame, RpcError>>

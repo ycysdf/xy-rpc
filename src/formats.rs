@@ -1,5 +1,4 @@
-use crate::maybe_send::{AnyError, MaybeSend, MaybeSync};
-use alloc::boxed::Box;
+use crate::maybe_send::AnyError;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use core::mem::ManuallyDrop;
 use serde::{Deserialize, Serialize};
@@ -25,7 +24,7 @@ pub trait SerdeFormat: Send + Sync + Clone + 'static {
             self.serialize_to_buf(writer, value)
         }
     }
-    // fn serialize_to_vec<T>(value: &T) -> Result<Vec<u8>,Box<dyn Error+MaybeSend>
+    // fn serialize_to_vec<T>(value: &T) -> Result<Vec<u8>, Box<dyn Error>>
     // where
     //     T: ?Sized + Serialize;
     fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> Result<T, AnyError>
@@ -55,7 +54,7 @@ pub trait SerdeFormat: Send + Sync + Clone + 'static {
             self.deserialize_from_slice(v.as_ref())
         }
     }
-    // fn deserialize_from_reader<R, T>(&self, reader: R) -> Result<T,Box<dyn Error+MaybeSend>
+    // fn deserialize_from_reader<R, T>(&self, reader: R) -> Result<T, Box<dyn Error>>
     // where
     //     R: Read,
     //     T: DeserializeOwned;
@@ -63,7 +62,7 @@ pub trait SerdeFormat: Send + Sync + Clone + 'static {
 
 // pub trait DynSerdeFormat: Send + Sync + Clone + 'static {
 //     fn serialize_to_writer_dyn(&self, writer: &dyn Write, value: &dyn ) -> Result(),AnyError;
-//     fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> Result<T,Box<dyn Error+MaybeSend>
+//     fn deserialize_from_slice<'a, T>(&self, v: &'a [u8]) -> Result<T, Box<dyn Error>>
 //     where
 //         T: Deserialize<'a>;
 // }
@@ -81,7 +80,7 @@ impl SerdeFormat for JsonFormat {
         Ok(serde_json::to_writer(writer.writer(), value)?)
     }
 
-    // fn serialize_to_vec<T>(value: &T) -> Result<Vec<u8>,Box<dyn Error+MaybeSend>
+    // fn serialize_to_vec<T>(value: &T) -> Result<Vec<u8>, Box<dyn Error>>
     // where
     //     T: ?Sized + Serialize,
     // {
@@ -95,7 +94,7 @@ impl SerdeFormat for JsonFormat {
         Ok(serde_json::from_slice(v)?)
     }
 
-    // fn deserialize_from_reader<R, T>(&self, reader: R) -> Result<T,Box<dyn Error+MaybeSend>
+    // fn deserialize_from_reader<R, T>(&self, reader: R) -> Result<T, Box<dyn Error>>
     // where
     //     R: Read,
     //     T: DeserializeOwned,
@@ -117,7 +116,7 @@ impl SerdeFormat for MessagePackFormat {
         rmp_serde::encode::write(&mut writer.writer(), value).map_err(|err| Box::new(err) as _)
     }
 
-    // fn serialize_to_vec<T>(value: &T) -> Result<Vec<u8>,Box<dyn Error+MaybeSend>
+    // fn serialize_to_vec<T>(value: &T) -> Result<Vec<u8>, Box<dyn Error>>
     // where
     //     T: ?Sized + Serialize,
     // {
@@ -131,7 +130,7 @@ impl SerdeFormat for MessagePackFormat {
         rmp_serde::from_slice(v).map_err(|err| Box::new(err) as _)
     }
 
-    // fn deserialize_from_reader<R, T>(&self, reader: R) -> Result<T,Box<dyn Error+MaybeSend>
+    // fn deserialize_from_reader<R, T>(&self, reader: R) -> Result<T, Box<dyn Error>>
     // where
     //     R: Read,
     //     T: DeserializeOwned,
