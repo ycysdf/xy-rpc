@@ -1,4 +1,5 @@
 [workspace]
+resolver = "3"
 members = [
     "crates/xy-rpc-macro",
     "xtask",
@@ -10,12 +11,21 @@ members = [
 name = "xy-rpc"
 version = "0.2.0"
 edition = "2024"
+rust-version = "1.85"
 description = "An RPC framework for Rust"
 license = "MIT"
 repository = "https://github.com/ycysdf/xy-rpc"
+documentation = "https://docs.rs/xy-rpc"
+readme = "README.md"
+keywords = ["rpc", "async", "serde", "tokio", "wasm"]
+categories = ["asynchronous", "network-programming", "web-programming"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[package.metadata.docs.rs]
+features = ["rt_tokio", "format_json", "axum", "duplex", "stream"]
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["std", "format_json"]
