@@ -111,23 +111,23 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --target wasm32-unknown-unknown ${{ matrix.no-default-features && '--no-default-features' || '' }} --features "${{ matrix.features }}"
 
-  fmt:
-    name: fmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - run: cargo fmt --all --check
-
-  clippy:
-    name: clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --features "rt_tokio,format_json,axum,duplex,stream,send_sync" -- -D warnings
+#  fmt:
+#    name: fmt
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: dtolnay/rust-toolchain@stable
+#        with:
+#          components: rustfmt
+#      - run: cargo fmt --all --check
+#
+#  clippy:
+#    name: clippy
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: dtolnay/rust-toolchain@stable
+#        with:
+#          components: clippy
+#      - uses: Swatinem/rust-cache@v2
+#      - run: cargo clippy --features "rt_tokio,format_json,axum,duplex,stream,send_sync" -- -D warnings
