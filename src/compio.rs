@@ -95,9 +95,9 @@ pub async fn write_frame(
 }
 
 pub async fn read_frame(mut read: impl AsyncRead + Unpin) -> Result<RpcFrameHead, RpcError> {
-    let mut bits: RpcFrameHeadBits = [0; 8];
+    let bits: RpcFrameHeadBits = [0; 8];
     read.read_exact(bits).await.0?;
-    Ok(bits.into())
+    Ok(bits.try_into().map_err(|_| RpcError::InvalidFrame)?)
 }
 
 // #[cfg(feature = "duplex")]

@@ -5,7 +5,6 @@ use crate::{
     ChannelBuilder, RpcError, RpcMsgHandler, RpcMsgHandlerWrapper, RpcSchema, ServiceFactory,
     XyRpcChannel, new_transport_sink, new_transport_stream,
 };
-use alloc::format;
 use core::future::Future;
 use futures_util::future::Either;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -89,7 +88,7 @@ pub async fn write_frame(
 pub async fn read_frame(mut read: impl AsyncRead + Unpin) -> Result<RpcFrameHead, RpcError> {
     let mut bits: RpcFrameHeadBits = [0; 8];
     read.read_exact(&mut bits).await?;
-    Ok(bits.into())
+    Ok(bits.try_into().map_err(|_| RpcError::InvalidFrame)?)
 }
 
 #[cfg(feature = "duplex")]
@@ -204,14 +203,14 @@ where
         Either::Left((f_end, r_future)) => {
             #[cfg(feature = "send_sync")]
             let f_end = f_end.map_err(|err| RpcError::OtherError {
-                message: format!("panic: {err:?}"),
+                message: alloc::format!("panic: {err:?}"),
             })?;
             // println!("f end");
             drop(channel);
             drop(channel2);
             #[cfg(feature = "send_sync")]
             r_future.await.map_err(|err| RpcError::OtherError {
-                message: format!("panic: {err:?}"),
+                message: alloc::format!("panic: {err:?}"),
             })??;
             #[cfg(not(feature = "send_sync"))]
             r_future.await?;
@@ -220,7 +219,7 @@ where
         Either::Right((r_end, f_future)) => {
             #[cfg(feature = "send_sync")]
             f_future.await.map_err(|err| RpcError::OtherError {
-                message: format!("panic: {err:?}"),
+                message: alloc::format!("panic: {err:?}"),
             })??;
             #[cfg(not(feature = "send_sync"))]
             f_future.await?;
@@ -229,7 +228,7 @@ where
             drop(channel2);
             #[cfg(feature = "send_sync")]
             r_end.map_err(|err| RpcError::OtherError {
-                message: format!("panic: {err:?}"),
+                message: alloc::format!("panic: {err:?}"),
             })??;
             #[cfg(not(feature = "send_sync"))]
             r_end?;

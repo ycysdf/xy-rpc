@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use alloc::boxed::Box;
 use core::error::Error;
 pub use send_sync::*;

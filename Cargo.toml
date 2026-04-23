@@ -63,7 +63,7 @@ modular-bitfield = { version = "0.13", features = [] }
 
 serde_json = { version = "1", features = ["std"], default-features = false, optional = true }
 tokio = { version = "1", features = ["rt", "net", "io-util"], default-features = false, optional = true }
-tokio-util = { version = "0.7", features = ["compat"], default-features = false, optional = true }
+tokio-util = { version = "0.7", features = ["compat", "io"], default-features = false, optional = true }
 axum = { version = "0.8", features = [], default-features = false, optional = true }
 dashmap = { version = "6", optional = true }
 rmp-serde = { version = "1.3", optional = true }
@@ -91,8 +91,7 @@ axum = { version = "0.8", features = [] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio-util = { version = "0.7", features = ["io"], default-features = false }
 tokio = { version = "1", features = ["full"] }
-#xy-rpc = { path = ".", features = ["rt_tokio_without_send_sync", "axum", "format_json", "format_message_pack", "duplex", "tracing_live"] }
-#tracing-lv = { path = "../tracing-live/libs/client" }
+#tracing-lv = { path = "tracing-live/libs/client" }
 tower-http = { version = "0.6", features = ["cors"] }
 compio = { version = "0.18", features = ["macros", "time"] }
 bincode = { version = "1.3", features = [] }

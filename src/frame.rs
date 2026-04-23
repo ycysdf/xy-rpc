@@ -1,3 +1,4 @@
+// modular-bitfield generates non_snake_case methods for skip fields
 #![allow(non_snake_case)]
 #[cfg(feature = "std")]
 use crate::RpcError;
@@ -193,16 +194,23 @@ impl RpcFrameHead {
     }
 }
 
-impl From<RpcFrameHeadBits> for RpcFrameHead {
-    fn from(bits: RpcFrameHeadBits) -> Self {
-        let kind = RpcFrameKind::from_bytes(bits.get_bits(0..4)).unwrap();
+impl RpcFrameHead {
+    pub fn try_from_bits(bits: RpcFrameHeadBits) -> Result<Self, ()> {
+        let kind = RpcFrameKind::from_bytes(bits.get_bits(0..4)).map_err(|_| ())?;
         match kind {
-            RpcFrameKind::Msg => RpcFrameHead::Msg(RpcFrameHeadMsg::from_bytes(bits)),
-            RpcFrameKind::Rpc => RpcFrameHead::Rpc(RpcFrameHeadRpc::from_bytes(bits)),
+            RpcFrameKind::Msg => Ok(RpcFrameHead::Msg(RpcFrameHeadMsg::from_bytes(bits))),
+            RpcFrameKind::Rpc => Ok(RpcFrameHead::Rpc(RpcFrameHeadRpc::from_bytes(bits))),
             RpcFrameKind::CancelRpc => {
-                RpcFrameHead::CancelRpc(RpcFrameHeadCancelRpc::from_bytes(bits))
+                Ok(RpcFrameHead::CancelRpc(RpcFrameHeadCancelRpc::from_bytes(bits)))
             }
         }
+    }
+}
+
+impl TryFrom<RpcFrameHeadBits> for RpcFrameHead {
+    type Error = ();
+    fn try_from(bits: RpcFrameHeadBits) -> Result<Self, ()> {
+        Self::try_from_bits(bits)
     }
 }
 
@@ -254,7 +262,7 @@ pub async fn read_frame(
             Some(Err(err.into()))
         }
     } else {
-        Some(Ok(bits.into()))
+        Some(RpcFrameHead::try_from_bits(bits).map_err(|_| RpcError::InvalidFrame))
     }
 }
 

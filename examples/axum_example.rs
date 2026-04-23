@@ -26,7 +26,6 @@ pub async fn main() {
         tokio::spawn(async move {
             let mut channels = vec![];
             while let Ok(channel) = channel_receiver.recv_async().await {
-                // channel.hello(12).await;
                 println!("recv channel");
                 channels.push(channel);
             }

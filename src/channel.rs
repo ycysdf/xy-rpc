@@ -77,18 +77,12 @@ pub enum InnerMsg {
         stream: bool,
         reply_sender: OneOrMultiSender,
     },
-    // Call(CallMsg),
     CallStreaming {
         op_id: RpcOpId,
         item: Option<Bytes>,
     },
     Cancel(RpcOpId),
 }
-
-// pub struct CallMsg {
-//     item: RpcMsgItem,
-//     reply_sender: futures_channel::oneshot::Sender<RpcMsgItem>,
-// }
 
 pub struct XyRpcChannel<SF, CS: RpcSchema = ()> {
     sender_id_atomic: Arc<portable_atomic::AtomicU16>,
@@ -162,7 +156,6 @@ impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
                         RpcFrameHead::Msg(_head) => {
                             warn!("unexpected msg frame.");
                         }
-                        // RpcFrameHead::Rpc(RpcFrameHeadRpc{reply,exclusive: _,stream,msg_kind,msg_id,payload_len: _  }) => {
                         RpcFrameHead::Rpc(head) => {
                             let op_id = head.op_id();
                             // println!("Rpc key: {key:?}. reply: {reply}");
@@ -203,8 +196,9 @@ impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
                                             warn!(?op_id, "not found stream item sender");
                                             return;
                                         };
-                                        // TODO:
-                                        sender.send(frame.payload).unwrap()
+                                        if sender.send(frame.payload).is_err() {
+                                            warn!(?op_id, "stream item receiver dropped");
+                                        }
                                     }
                                     RpcStreamKind::StreamEnd => {
                                         if call_msg_stream_item_sender.remove(&op_id).is_none() {
