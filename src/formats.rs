@@ -1,4 +1,6 @@
 use crate::maybe_send::AnyError;
+#[cfg(feature = "format_message_pack")]
+use alloc::boxed::Box;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use core::mem::ManuallyDrop;
 use serde::{Deserialize, Serialize};

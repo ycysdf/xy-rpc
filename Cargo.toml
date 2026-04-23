@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/xy-rpc-macro",
+    "xtask",
     #    "examples/wasm_play"
     #    "examples/*"
 ]
