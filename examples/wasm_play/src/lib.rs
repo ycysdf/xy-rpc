@@ -8,7 +8,7 @@ use xy_rpc::maybe_send::{MaybeSend, MaybeSync};
 use xy_rpc::{ChannelBuilder, RpcError, TransStream, formats::SerdeFormat, rpc_service};
 
 #[rpc_service]
-pub trait RpcTest2Service {
+pub trait RpcTestTwoService {
     fn hello(&self, x: u32) -> impl Future<Output = u32> + MaybeSend;
 }
 

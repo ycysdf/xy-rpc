@@ -3,3 +3,4 @@ Cargo.lock
 .idea
 pkg
 foo.md
+examples/wasm_play/pkg

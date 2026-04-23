@@ -7,13 +7,13 @@ struct ComplexObj {
     c: bool,
 }
 
-struct Test2Service;
+struct TestTwoService;
 
 #[rpc_service]
-trait RpcTest2Service {
+trait RpcTestTwoService {
     fn hello(&self, x: u32) -> impl Future<Output = u32> + Send;
 }
-impl RpcTest2Service for Test2Service {
+impl RpcTestTwoService for TestTwoService {
     fn hello(&self, x: u32) -> impl Future<Output = u32> + Send {
         async move {
             tokio::time::sleep(Duration::from_millis(x as _)).await;
@@ -65,7 +65,7 @@ async fn duplex_test() {
             },
         ),
         (
-            |_| Test2Service,
+            |_| TestTwoService,
             async |channel| {
                 channel.a(&1).await?;
                 channel.b(&12322, &"TEST".to_string(), &false).await?;
@@ -102,7 +102,7 @@ async fn concurrent_test() {
             },
         ),
         (
-            |_| Test2Service,
+            |_| TestTwoService,
             async |channel| {
                 let r = try_join!(
                     channel.a(&100),
