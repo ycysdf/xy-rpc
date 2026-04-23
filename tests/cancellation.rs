@@ -1,4 +1,4 @@
-#![cfg(all(feature = "rt_tokio_without_send_sync",feature = "duplex"))]
+#![cfg(all(feature = "rt_tokio_without_send_sync", feature = "duplex"))]
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ComplexObj {

@@ -11,9 +11,9 @@ use axum::response::{IntoResponse, Response};
 use core::convert::Infallible;
 use core::marker::PhantomData;
 use core::task::{Context, Poll};
-use std::println;
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, StreamExt};
+use std::println;
 use tokio::io::{AsyncWriteExt, SimplexStream, WriteHalf};
 use tower::Service;
 use uuid::{Uuid, uuid};
@@ -95,7 +95,14 @@ where
     fn call(&mut self, mut req: Request) -> Self::Future {
         println!("{:?}", req.uri());
         // async move { Ok(StatusCode::OK.into_response()) }.boxed()
-        let stream_id = req.uri().query().unwrap().split("=").last().unwrap().trim_end_matches("&");
+        let stream_id = req
+            .uri()
+            .query()
+            .unwrap()
+            .split("=")
+            .last()
+            .unwrap()
+            .trim_end_matches("&");
         let stream_id = Uuid::parse_str(stream_id).unwrap();
         match req.uri().path() {
             "/data_stream" => {

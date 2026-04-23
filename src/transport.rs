@@ -4,17 +4,12 @@ use crate::maybe_send::MaybeSend;
 use futures_util::{Sink, Stream};
 
 pub trait RpcTransportStream:
-    Stream<Item = Result<RpcFrame, RpcError>>
-    + MaybeSend
-    + 'static
+    Stream<Item = Result<RpcFrame, RpcError>> + MaybeSend + 'static
 {
 }
 
 impl<S> RpcTransportStream for S where
-    S: ?Sized
-        + Stream<Item = Result<RpcFrame, RpcError>>
-        + MaybeSend
-        + 'static
+    S: ?Sized + Stream<Item = Result<RpcFrame, RpcError>> + MaybeSend + 'static
 {
 }
 

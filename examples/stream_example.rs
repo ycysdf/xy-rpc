@@ -1,6 +1,6 @@
+use core::pin::pin;
 use futures_util::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
-use core::pin::pin;
 use tracing::info;
 use xy_rpc::formats::{JsonFormat, SerdeFormat};
 use xy_rpc::maybe_send::MaybeSend;

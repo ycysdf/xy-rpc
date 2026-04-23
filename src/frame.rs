@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
-use crate::RpcOpId;
 #[cfg(feature = "std")]
 use crate::RpcError;
+use crate::RpcOpId;
 use alloc::string::String;
 use bit_field::BitArray;
 use bytes::Bytes;
@@ -207,7 +207,6 @@ impl Into<RpcFrameHeadBits> for RpcFrameHead {
         }
     }
 }
-
 
 #[cfg(feature = "std")]
 pub async fn write_frame(

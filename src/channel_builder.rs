@@ -1,17 +1,17 @@
 use crate::formats::SerdeFormat;
 use crate::frame::RpcMsgKind;
-use crate::maybe_send::{MaybeSend, MaybeSync};
-use crate::{RpcError, RpcTransportSink, RpcTransportStream, XyRpcChannel, maybe_send};
 #[cfg(feature = "std")]
 use crate::frame::{self, RpcFrame};
+use crate::maybe_send::{MaybeSend, MaybeSync};
+use crate::{RpcError, RpcTransportSink, RpcTransportStream, XyRpcChannel, maybe_send};
 #[cfg(feature = "std")]
 use alloc::boxed::Box;
 use bytes::Bytes;
 #[cfg(feature = "std")]
 use bytes::BytesMut;
+use core::marker::PhantomData;
 #[cfg(feature = "std")]
 use futures_util::{AsyncReadExt, AsyncWriteExt, StreamExt};
-use core::marker::PhantomData;
 
 pub trait RpcSchema: Clone {}
 

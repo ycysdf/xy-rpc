@@ -67,12 +67,11 @@ pub fn rpc_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
         .enumerate()
         .map(|(index, n)| {
             let found_input_trans_stream = get_input_trans_stream(n);
-            let args = n
-                .sig
-                .inputs
-                .iter()
-                .enumerate()
-                .filter(|n| !found_input_trans_stream.as_ref().is_some_and(|s| s.3 == n.0));
+            let args = n.sig.inputs.iter().enumerate().filter(|n| {
+                !found_input_trans_stream
+                    .as_ref()
+                    .is_some_and(|s| s.3 == n.0)
+            });
             let name = n.sig.ident.to_string().to_case(Case::UpperCamel);
             let ident = format_ident!("{trait_ident}{name}");
             let ref_ident = format_ident!("{trait_ident}{name}Ref");
