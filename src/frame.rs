@@ -64,19 +64,39 @@ impl Debug for RpcFrame {
 }
 
 impl RpcFrame {
-    pub fn out_stream_end(op: RpcOpId) -> Self {
+    fn rpc(op: RpcOpId, reply: bool, stream: RpcStreamKind, payload: Bytes) -> Self {
         Self {
             head: RpcFrameHead::Rpc(
                 RpcFrameHeadRpc::new()
-                    .with_reply(true)
+                    .with_reply(reply)
+                    .with_exclusive(false)
+                    .with_stream(stream)
                     .with_msg_id(op.msg_id)
                     .with_msg_kind(op.msg_kind)
-                    .with_stream(RpcStreamKind::StreamEnd)
-                    .with_exclusive(false)
-                    .with_payload_len(0),
+                    .with_payload_len(payload.len() as _),
             ),
-            payload: Default::default(),
+            payload,
         }
+    }
+
+    pub fn call(op: RpcOpId, stream: RpcStreamKind, payload: Bytes) -> Self {
+        Self::rpc(op, false, stream, payload)
+    }
+
+    pub fn reply(op: RpcOpId, stream: RpcStreamKind, payload: Bytes) -> Self {
+        Self::rpc(op, true, stream, payload)
+    }
+
+    pub fn stream_item(op: RpcOpId, payload: Bytes) -> Self {
+        Self::reply(op, RpcStreamKind::StreamItem, payload)
+    }
+
+    pub fn stream_end(op: RpcOpId) -> Self {
+        Self::reply(op, RpcStreamKind::StreamEnd, Bytes::default())
+    }
+
+    pub fn out_stream_end(op: RpcOpId) -> Self {
+        Self::stream_end(op)
     }
     pub fn cancel(op: RpcOpId) -> Self {
         Self {
@@ -168,7 +188,7 @@ impl RpcFrameHead {
         match &self {
             RpcFrameHead::Msg(n) => n.payload_len(),
             RpcFrameHead::Rpc(n) => n.payload_len(),
-            RpcFrameHead::CancelRpc { .. } => 0,
+            RpcFrameHead::CancelRpc(_) => 0,
         }
     }
 }

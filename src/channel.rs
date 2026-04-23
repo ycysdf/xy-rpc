@@ -1,6 +1,6 @@
 use crate::formats::SerdeFormat;
 use crate::frame::{
-    RpcFrame, RpcFrameHead, RpcFrameHeadRpc, RpcMsgKind, RpcMsgSendId, RpcStreamKind,
+    RpcFrame, RpcFrameHead, RpcMsgKind, RpcMsgSendId, RpcStreamKind,
 };
 use crate::handle_rpc::{HandleRpc, OneOrMultiSender};
 use crate::maybe_send::{AnyError, MaybeSend};
@@ -271,18 +271,7 @@ impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
                                 match payload {
                                     HandleReply::Once(payload) => {
                                         transport_sink
-                                            .send(RpcFrame {
-                                                head: RpcFrameHead::Rpc(
-                                                    RpcFrameHeadRpc::new()
-                                                        .with_reply(true)
-                                                        .with_exclusive(false)
-                                                        .with_stream(RpcStreamKind::None)
-                                                        .with_msg_kind(op_id.msg_kind)
-                                                        .with_msg_id(op_id.msg_id)
-                                                        .with_payload_len(payload.len() as _),
-                                                ),
-                                                payload,
-                                            })
+                                            .send(RpcFrame::reply(op_id, RpcStreamKind::None, payload))
                                             .await?;
                                     }
                                     HandleReply::Stream(out_stream) => {
@@ -315,50 +304,21 @@ impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
                                     if let Some(_reply_sender) = calls.insert(op_id, reply_sender) {
                                         warn!(?op_id, "call conflict");
                                     }
-                                    RpcFrame {
-                                        head: RpcFrameHead::Rpc(
-                                            RpcFrameHeadRpc::new()
-                                                .with_reply(false)
-                                                .with_exclusive(false)
-                                                .with_stream(if stream {
-                                                    RpcStreamKind::StreamStart
-                                                } else {
-                                                    RpcStreamKind::None
-                                                })
-                                                .with_msg_id(op_id.msg_id)
-                                                .with_msg_kind(op_id.msg_kind)
-                                                .with_payload_len(payload.len() as _),
-                                        ),
+                                    RpcFrame::call(
+                                        op_id,
+                                        if stream {
+                                            RpcStreamKind::StreamStart
+                                        } else {
+                                            RpcStreamKind::None
+                                        },
                                         payload,
-                                    }
+                                    )
                                 }
                                 InnerMsg::CallStreaming { op_id, item } => {
                                     if let Some(payload) = item {
-                                        RpcFrame {
-                                            head: RpcFrameHead::Rpc(
-                                                RpcFrameHeadRpc::new()
-                                                    .with_reply(false)
-                                                    .with_exclusive(false)
-                                                    .with_stream(RpcStreamKind::StreamItem)
-                                                    .with_msg_id(op_id.msg_id)
-                                                    .with_msg_kind(op_id.msg_kind)
-                                                    .with_payload_len(payload.len() as _),
-                                            ),
-                                            payload,
-                                        }
+                                        RpcFrame::call(op_id, RpcStreamKind::StreamItem, payload)
                                     } else {
-                                        RpcFrame {
-                                            head: RpcFrameHead::Rpc(
-                                                RpcFrameHeadRpc::new()
-                                                    .with_reply(false)
-                                                    .with_exclusive(false)
-                                                    .with_stream(RpcStreamKind::StreamEnd)
-                                                    .with_msg_id(op_id.msg_id)
-                                                    .with_msg_kind(op_id.msg_kind)
-                                                    .with_payload_len(0),
-                                            ),
-                                            payload: Bytes::default(),
-                                        }
+                                        RpcFrame::stream_end(op_id)
                                     }
                                 }
                                 InnerMsg::Cancel(op_id) => RpcFrame::cancel(op_id),
@@ -378,7 +338,7 @@ impl<SF: SerdeFormat, CS: RpcSchema> XyRpcChannel<SF, CS> {
                                 warn!("error out stream error: {:?}", err);
                             }
                             None => {
-                                transport_sink.send(RpcFrame::out_stream_end(op_id)).await?;
+                                transport_sink.send(RpcFrame::stream_end(op_id)).await?;
                             }
                         },
                     }
@@ -481,18 +441,7 @@ async fn get_next_out_stream_future(
             n.map(move |payload| {
                 (
                     out_stream,
-                    RpcFrame {
-                        head: RpcFrameHead::Rpc(
-                            RpcFrameHeadRpc::new()
-                                .with_reply(true)
-                                .with_exclusive(false)
-                                .with_stream(RpcStreamKind::StreamItem)
-                                .with_msg_kind(op_id.msg_kind)
-                                .with_msg_id(op_id.msg_id)
-                                .with_payload_len(payload.len() as _),
-                        ),
-                        payload,
-                    },
+                    RpcFrame::stream_item(op_id, payload),
                 )
             })
         }),
