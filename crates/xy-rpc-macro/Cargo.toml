@@ -10,11 +10,7 @@ repository = "https://github.com/ycysdf/xy-rpc"
 proc-macro = true
 
 [dependencies]
-
-#syn = { version = "2", features = ["full"] }
-#quote = "1"
-#proc-macro2 = "1"
-#convert_case = "0.7"
-#either = "1"
-
-zyn = { version = "0.5" }
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
+convert_case = "0.7"
