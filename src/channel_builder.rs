@@ -45,25 +45,6 @@ impl<S: RpcSchema> RpcMsgHandler<S> for () {
     }
 }
 
-// impl RpcMsgHandler<()> for RpcMsgHandlerWrapper<()> {
-//     fn handle(
-//         &self,
-//         _msg: RpcRawMsg,
-//         _stream: Option<flume::Receiver<Bytes>>,
-//         _serde_format: &impl SerdeFormat,
-//     ) -> Result<impl Future<Output = Result<HandleReply, RpcError>> + MaybeSend, RpcError> {
-//         Ok(async move { unreachable!("no handler") })
-//     }
-// }
-//
-// pub trait RpcMsgExclusiveHandler<S: RpcSchema>: MaybeSend + MaybeSync {
-//     fn exclusive_handle(
-//         &mut self,
-//         msg: RpcRawMsg,
-//         stream: Option<flume::Receiver<Bytes>>,
-//         serde_format: &impl SerdeFormat,
-//     ) -> Result<impl Future<Output = Result<HandleReply, RpcError>> + MaybeSend, RpcError>;
-// }
 
 pub struct ChannelBuilder<SF, CS = (), MH = (), MSG = ()> {
     msg_handler: MH,
