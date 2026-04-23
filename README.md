@@ -1,28 +1,28 @@
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ycysdf/xy-rpc#LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ycysdf/xy-rpc#license)
 [![Crates.io](https://img.shields.io/crates/v/xy-rpc.svg)](https://crates.io/crates/xy-rpc)
 [![Docs](https://docs.rs/xy-rpc/badge.svg)](https://docs.rs/xy-rpc)
 
-# Xy Rpc
+# xy-rpc
 
-<div>
-  <h6>
-    <a href="https://github.com/ycysdf/xy-rpc/blob/main/README-zh.md"> 中文 </a>
-  </h6>
-</div>
+[中文说明](./README-zh.md)
+
+`xy-rpc` is an RPC framework for Rust with trait-based schema definitions, transport-agnostic channels, and bidirectional calling support.
 
 ## Features
 
-- Over any transport By implementing `AsyncRead`、`AsyncWrite`
+- Transport-agnostic: works over any `AsyncRead` + `AsyncWrite`
 - Bidirectional RPC
-- No Proto File. Define the schema through `Trait`
+- No `.proto` files; services are defined with Rust traits
 - Supports any Serde-compatible serialization format
-- The Asynchronous Runtime is Agnostic
-- When invoking RPC methods with reference-type parameters, ownership consumption is not required
-- Supports non-Send types and single-threaded environments”
+- Runtime-agnostic core
+- Reference arguments do not require ownership transfer on call sites
+- Supports non-`Send` and single-threaded environments
+- Includes wasm/web support on `wasm32`
+
 
 ## Simple Example
 
-Define your Service in a public lib
+Define your service in a shared public library:
 
 ```rust
 use xy_rpc::{formats::JsonFormat, rpc_service};
@@ -36,7 +36,7 @@ pub trait ExampleService {
 }
 ```
 
-caller
+Caller:
 
 ```rust
 use crate::proto::*;
@@ -66,7 +66,7 @@ pub async fn main() {
 }
 ```
 
-Server
+Server:
 
 ```rust
 use crate::proto::*;
@@ -101,7 +101,7 @@ pub async fn main() {
 
 ## Bidirectional RPC Example
 
-Define services for both parties
+Define services for both parties:
 
 ```rust
 use xy_rpc::{formats::JsonFormat, rpc_service};
@@ -122,14 +122,14 @@ pub trait ServerService {
 }
 ```
 
-connector
+Connector:
 
 ```rust
 use crate::proto::*;
 use core::net::SocketAddr;
 use core::time::Duration;
-use xy_rpc::XyRpcChannel;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
+use xy_rpc::XyRpcChannel;
 
 #[path = "proto.rs"]
 mod proto;
@@ -164,17 +164,16 @@ pub async fn main() {
    println!("Server reply: {:?}", replay);
 
    tokio::time::sleep(Duration::from_secs(1)).await;
-   // task.await.unwrap();
 }
 ```
 
-Acceptor
+Acceptor:
 
 ```rust
 use crate::proto::*;
 use core::net::SocketAddr;
-use xy_rpc::XyRpcChannel;
 use xy_rpc::tokio::ChannelBuilderTokioExt;
+use xy_rpc::XyRpcChannel;
 
 #[path = "proto.rs"]
 mod proto;
