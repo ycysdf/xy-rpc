@@ -1,14 +1,11 @@
 use crate::formats::SerdeFormat;
 use crate::maybe_send::MaybeSend;
-use crate::{ChannelBuilder, RpcError, RpcMsgHandler, RpcSchema, ServiceFactory, XyRpcChannel};
+use crate::{ChannelBuilder, RpcError, RpcSchema, ServiceFactory, XyRpcChannel};
 use alloc::format;
 use alloc::string::{String, ToString};
-use core::pin::Pin;
-use core::task::{Context, Poll};
-use futures_util::{SinkExt, Stream, StreamExt};
+use futures_util::{SinkExt, Stream};
 use gloo_net::Error;
 use js_sys::Uint8Array;
-use pin_project::pin_project;
 use std::sync::{Arc, Mutex};
 use wasm_bindgen::__rt::IntoJsResult;
 use wasm_bindgen::JsValue;
@@ -96,40 +93,7 @@ where
     {
         let read = wasm_streams::ReadableStream::from_raw(readable_stream).into_async_read();
         let write = wasm_streams::WritableStream::from_raw(writable_stream).into_async_write();
-        self.build_from_read_write((ForceSend(read), ForceSend(write)))
-    }
-}
-
-#[pin_project]
-pub struct ForceSend<T>(#[pin] T);
-
-unsafe impl<T> Send for ForceSend<T> {}
-
-impl<T: futures_util::AsyncRead> futures_util::AsyncRead for ForceSend<T> {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<std::io::Result<usize>> {
-        self.project().0.poll_read(cx, buf)
-    }
-}
-
-impl<T: futures_util::AsyncWrite> futures_util::AsyncWrite for ForceSend<T> {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
-        self.project().0.poll_write(cx, buf)
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        self.project().0.poll_flush(cx)
-    }
-
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        self.project().0.poll_close(cx)
+        self.build_from_read_write((read, write))
     }
 }
 
@@ -139,9 +103,9 @@ pub fn stream_to_js_async_iterator(
     use futures_util::StreamExt;
     let symbol = js_sys::Symbol::async_iterator();
     let object = js_sys::Object::new();
-    let mut stream = Arc::new(Mutex::new(stream));
+    let stream = Arc::new(Mutex::new(stream));
     let ff = Closure::<dyn Fn() -> js_sys::Promise>::new(move || {
-        let mut stream = stream.clone();
+        let stream = stream.clone();
         wasm_bindgen_futures::future_to_promise(async move {
             let mut stream = stream.lock().unwrap();
             let object = js_sys::Object::new();
@@ -174,9 +138,9 @@ pub fn try_stream_to_js_async_iterator<
     use futures_util::StreamExt;
     let symbol = js_sys::Symbol::async_iterator();
     let object = js_sys::Object::new();
-    let mut stream = Arc::new(Mutex::new(stream.boxed_local()));
+    let stream = Arc::new(Mutex::new(stream.boxed_local()));
     let ff = Closure::<dyn Fn() -> js_sys::Promise>::new(move || {
-        let mut stream = stream.clone();
+        let stream = stream.clone();
         wasm_bindgen_futures::future_to_promise(async move {
             let mut stream = stream.lock().unwrap();
             let object = js_sys::Object::new();
