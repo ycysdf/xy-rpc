@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use futures_util::Stream;

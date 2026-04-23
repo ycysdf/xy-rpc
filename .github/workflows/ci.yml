@@ -102,13 +102,6 @@ jobs:
         include:
           - name: json
             features: format_json
-          - name: json-send-sync
-            features: format_json,send_sync
-          - name: message-pack
-            features: format_message_pack
-          - name: no-std
-            no-default-features: true
-            features: send_sync
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

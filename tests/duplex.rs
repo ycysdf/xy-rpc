@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 #![cfg(all(
     feature = "format_json",
     feature = "rt_tokio_without_send_sync",
