@@ -1739,16 +1739,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-lv-track"
-version = "0.1.0"
-dependencies = [
- "futures-util",
- "pin-project",
- "tracing",
- "tracing-core",
-]
-
-[[package]]
 name = "tracing-subscriber"
 version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2151,7 +2141,6 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
- "tracing-lv-track",
  "tracing-subscriber",
  "try-specialize",
  "ts-rs",
