@@ -2,11 +2,10 @@ use crate::formats::SerdeFormat;
 use crate::frame::{RpcFrame, RpcMsgKind};
 use crate::maybe_send::{MaybeSend, MaybeSync};
 use crate::{RpcError, RpcTransportSink, RpcTransportStream, XyRpcChannel, frame, maybe_send};
+use alloc::boxed::Box;
 use bytes::{Bytes, BytesMut};
-use futures_util::stream::BoxStream;
 use futures_util::{AsyncReadExt, AsyncWriteExt, Stream, StreamExt, TryStream};
-use std::marker::PhantomData;
-use std::prelude::rust_2015::Box;
+use core::marker::PhantomData;
 
 pub trait RpcSchema: Clone {}
 

@@ -8,6 +8,6 @@ pub fn stream_with_sender<T: MaybeSend + 'static, F: Future + MaybeSend>(
     let (tx, rx) = flume::unbounded();
     StreamWithFut::new(rx.into_stream(), async move {
         f(tx).await;
-        std::future::pending::<()>().await
+        core::future::pending::<()>().await
     })
 }
