@@ -32,7 +32,7 @@ enum TestEnum {
     derive(tsify::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
-struct TestStruct {
+pub struct TestStruct {
     pub name: String,
     pub string: String,
     pub number: u32,
